@@ -8,7 +8,8 @@ FlaskFarm(FF)용 **독립 구현 / 실서버 검증 전 테스트 버전**입니
 - 실제 FF NAS에서의 설치·기동·CPU/메모리 사용률은 아직 측정하지 않았습니다.
 - 실행 환경에서 사이트 원문이 HTTP 403 또는 `Site Unavailable`로 반환되어 **실제 작품 검색·이미지 파싱·다운로드는 검증하지 못했습니다.** 테스트용 HTML과 이미지로 기능을 검증했습니다.
 - 지원하는 사이트 구조는 `/ing`, `/end`, `/list?toon=번호`, `/view?toon=번호&num=번호`입니다. 사이트 리뉴얼로 URL·HTML·JavaScript 로딩 방식이 달라지면 파서를 수정해야 합니다. 도메인 변경과 사이트 구조 변경은 서로 다른 문제입니다.
-- GitHub 저장소: https://github.com/endells/wolf_downloader (비공개). 비공개 저장소이므로 FF에서 인증 없이 Git URL로 설치할 수 없습니다. 아래 ZIP 수동 설치 방법을 사용하세요.
+- 공개 GitHub 저장소: https://github.com/endells/wolf_downloader
+- FF 플러그인 설치 화면의 Git URL 입력란에 `https://github.com/endells/wolf_downloader`를 입력해 설치하세요. 별도 GitHub 인증은 필요하지 않습니다.
 
 ## 구현 기능
 
