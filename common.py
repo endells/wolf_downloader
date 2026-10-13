@@ -8,6 +8,43 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 
+def write_log(directory, level, message, secret_values=()):
+    """Append to FF's plugin log from either process without importing FF."""
+    import fcntl
+    import logging
+    from logging.handlers import RotatingFileHandler
+    message = str(message)
+    for value in sorted((str(v) for v in secret_values if v), key=len, reverse=True):
+        message = message.replace(value, '[REDACTED]')
+    message = re.sub(r'https?://\S+', '[URL]', message)
+    message = message.replace('\r', ' ').replace('\n', ' ')[:4000]
+    handler = None
+    try:
+        path = Path(directory).parent / 'log' / 'wolf_downloader.log'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Fresh handler per event avoids stale descriptors after another process rotates.
+        with (path.parent / '.wolf_downloader.log.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            handler = RotatingFileHandler(str(path), maxBytes=5 * 1024 * 1024, backupCount=3, encoding='utf-8')
+            handler.setFormatter(logging.Formatter('[%(asctime)s|%(levelname)s|wolf_downloader] %(message)s'))
+            record = logging.LogRecord('wolf_downloader', getattr(logging, level, logging.INFO), '', 0, message, (), None)
+            # Use explicit rollover/write so failures return False instead of stderr tracebacks.
+            if handler.shouldRollover(record):
+                handler.doRollover()
+            handler.stream.write(handler.format(record) + '\n')
+            handler.flush()
+            handler.close()
+        return True
+    except OSError:
+        return False
+    finally:
+        if handler is not None:
+            try:
+                handler.close()
+            except OSError:
+                pass
+
+
 class WolfError(Exception):
     pass
 
