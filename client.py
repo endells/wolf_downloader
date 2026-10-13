@@ -103,11 +103,14 @@ def parse_work(html, url, work_id):
             continue
         num = link_id(href, 'num')
         if num and urlsplit(href).path.rstrip('/').endswith('/view'):
-            label = a.attrs.get('title') or a.text() or ('회차 ' + num)
+            tooltip, visible = a.attrs.get('title', ''), a.text()
+            label = visible if re.search(r'\d+(?:\.\d+)?\s*[화회]', visible) and not re.search(r'\d+(?:\.\d+)?\s*[화회]', tooltip) else tooltip or visible or ('회차 ' + num)
             no = re.match(r'^\s*(\d+(?:\.\d+)?)(?:\s+|_)', label)
             if not no:
                 no = re.search(r'(\d+(?:\.\d+)?)\s*[화회]', label)
-            episodes.setdefault(num, {'id': num, 'title': label, 'no': float(no.group(1)) if no else int(num)})
+            candidate = {'id': num, 'title': label, 'no': float(no.group(1)) if no else int(num)}
+            if num not in episodes or (re.search(r'\d+\s*[화회]', label) and not re.search(r'\d+\s*[화회]', episodes[num]['title'])):
+                episodes[num] = candidate
         elif urlsplit(href).path.rstrip('/').endswith('/list') and any(k in parse_qs(urlsplit(href).query) for k in ('page', 'pg')):
             pages.add(href)
     if not title:
