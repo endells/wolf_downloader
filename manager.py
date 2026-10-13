@@ -5,7 +5,7 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
-from .common import WolfError, read_json, write_json
+from .common import WolfError, read_json, write_json, write_log
 
 
 class Manager:
@@ -42,6 +42,7 @@ class Manager:
                                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                             stderr=subprocess.DEVNULL, close_fds=True,
                                             pass_fds=(lock.fileno(),), start_new_session=True)
+            write_log(self.directory, 'INFO', '[{}] 작업 접수: {}'.format(job_id[:8], mode))
             return job_id
         except Exception:
             # Credentials should never be left in a pending job if spawn failed.
@@ -49,6 +50,7 @@ class Manager:
             if 'job_id' in locals():
                 (self.directory / 'job.json').unlink(missing_ok=True)
                 write_json(self.directory / 'status.json', {'status': 'error', 'message': '작업 프로세스를 시작하지 못했습니다.'})
+                write_log(self.directory, 'ERROR', '작업 프로세스 시작 실패')
             raise
         finally:
             # Do not LOCK_UN here: child owns the inherited open-file lock.
@@ -64,6 +66,8 @@ class Manager:
             state['status'] = 'interrupted'
             state['message'] = '작업 프로세스가 종료되었습니다. 기존 파일은 보존되며 다시 시도할 수 있습니다.'
             (self.directory / 'job.json').unlink(missing_ok=True)
+            write_json(self.directory / 'status.json', state)
+            write_log(self.directory, 'WARNING', state['message'])
         return state
 
     def result(self):
@@ -71,3 +75,4 @@ class Manager:
 
     def cancel(self):
         (self.directory / 'cancel').touch(mode=0o600)
+        write_log(self.directory, 'INFO', '작업 중지 요청')
