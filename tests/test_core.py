@@ -129,6 +129,61 @@ class CoreTests(unittest.TestCase):
         self.engine.run()
         self.assertTrue(old.with_name('0003_시험 작품 177화 #2.zip').exists())
 
+    def test_maintenance_delay_does_not_change_download_setting(self):
+        self.conf['request_delay'] = 5
+        job = dict(self.job, mode='reconcile')
+        client = FakeClient(self.conf)
+        Engine(self.root, job, client=client)
+        self.assertEqual(client.config['request_delay'], .5)
+        self.assertEqual(self.conf['request_delay'], 5)
+        download = Engine(self.root, self.job, client=FakeClient(self.conf))
+        self.assertEqual(download.client.config['request_delay'], 5)
+
+    def test_reconcile_cache_avoids_viewer_requests_and_zip_reads(self):
+        self.make_archive('0003_시험 작품 3화.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        with patch.object(self.client, 'html') as html, patch.object(self.engine, 'archive_signature') as signature:
+            self.engine.run()
+        html.assert_not_called()
+        signature.assert_not_called()
+        self.assertTrue(self.engine.complete(self.engine.history.get('42', '3')))
+
+    def test_changed_zip_invalidates_reconcile_cache(self):
+        self.make_archive('0003_시험 작품 3화.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        target = Path(self.engine.history.get('42', '3')['path'])
+        with zipfile.ZipFile(target, 'a') as archive:
+            archive.writestr('note.txt', 'changed')
+        with patch.object(self.client, 'html', wraps=self.client.html) as html:
+            self.engine.run()
+        self.assertEqual(html.call_count, 1)
+
+    def test_expired_cache_rechecks_site(self):
+        self.make_archive('0003_시험 작품 3화.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        cache_path = self.root / 'reconcile-cache-42.json'
+        cache = read_json(cache_path)
+        cache['episodes']['3']['time'] -= 86401
+        write_json(cache_path, cache)
+        with patch.object(self.client, 'html', wraps=self.client.html) as html:
+            self.engine.run()
+        self.assertEqual(html.call_count, 1)
+
+    def test_zip_signature_reads_each_entry_once(self):
+        path = self.make_archive('0003_시험 작품 3화.zip')
+        original = zipfile.ZipFile.open
+        opened = []
+        def tracked(archive, name, *args, **kwargs):
+            opened.append(name.filename if isinstance(name, zipfile.ZipInfo) else name)
+            return original(archive, name, *args, **kwargs)
+        with patch.object(zipfile.ZipFile, 'open', tracked):
+            signature = self.engine.archive_signature(path)
+        self.assertEqual(len(signature), 2)
+        self.assertEqual(opened, ['1.png', '2.png'])
+
     def test_direct_path_and_automatic_limit(self):
         self.engine.run()
         self.assertFalse((self.root / 'downloads' / 'manhwa').exists())
