@@ -245,6 +245,10 @@ class Engine:
                             index += 1
                         self.client.check()
                         path.rename(destination)
+                        ledger_path = self.directory / 'duplicate-retention.json'
+                        ledger = read_json(ledger_path, {})
+                        ledger[str(destination)] = {'stamp': self.file_stamp(destination), 'since': time.time()}
+                        write_json(ledger_path, ledger)
                         continue
                     seen[key] = path
             survivors.append((path, len(inventory)))
@@ -517,6 +521,78 @@ class Engine:
         cache['episodes'] = {ep['id']: entries[ep['id']] for ep in work['episodes'] if ep['id'] in entries}
         write_json(cache_path, cache)
 
+    def cleanup_duplicates(self):
+        """Expire only duplicate archives in registered, tagged work folders."""
+        root = Path(self.config['download_path']).resolve()
+        registered = set(title_ids(self.config['titles']))
+        ledger_path = self.directory / 'duplicate-retention.json'
+        ledger = read_json(ledger_path, {})
+        now = time.time()
+        retention = int(self.config['basic_interval']) * 60 * 30
+        try:
+            for parent in (root, root / 'manhwa'):
+                if parent.is_symlink() or not parent.is_dir():
+                    continue
+                for folder in parent.iterdir():
+                    self.client.check()
+                    match = re.search(r' \[(\d+)\]$', folder.name)
+                    if folder.is_symlink() or not folder.is_dir() or not match or match.group(1) not in registered:
+                        continue
+                    marker = read_json(folder / '.wolf-work.json', {})
+                    if marker and str(marker.get('id')) != match.group(1):
+                        continue
+                    backup = folder / '.duplicates'
+                    if backup.is_symlink() or not backup.is_dir():
+                        continue
+                    for path in backup.iterdir():
+                        self.client.check()
+                        if path.is_symlink() or not path.is_file() or path.suffix.lower() not in ('.zip', '.cbz'):
+                            continue
+                        number = re.match(r'^(\d+(?:\.\d+)?)_', path.name)
+                        if not number:
+                            continue
+                        key = str(path)
+                        stamp = self.file_stamp(path)
+                        entry = ledger.get(key, {})
+                        if entry.get('stamp') != stamp:
+                            ledger[key] = {'stamp': stamp, 'since': now}
+                            continue
+                        if now - entry['since'] < retention:
+                            continue
+                        try:
+                            inventory = self.archive_inventory(path)
+                            signature = None
+                            identical = False
+                            for kept in folder.iterdir():
+                                self.client.check()
+                                prefix = re.match(r'^(\d+(?:\.\d+)?)_', kept.name)
+                                if (kept.is_symlink() or not kept.is_file() or kept.suffix.lower() not in ('.zip', '.cbz')
+                                        or not prefix or float(prefix.group(1)) != float(number.group(1))):
+                                    continue
+                                kept_stamp = self.file_stamp(kept)
+                                if self.archive_inventory(kept) != inventory:
+                                    continue
+                                if signature is None:
+                                    signature = self.archive_signature(path)
+                                if self.archive_signature(kept) == signature and self.file_stamp(kept) == kept_stamp:
+                                    identical = True
+                                    break
+                            if identical and self.file_stamp(path) == stamp:
+                                self.client.check()
+                                path.unlink()
+                                ledger.pop(key, None)
+                                self.log('INFO', '보관 기간 만료 중복 ZIP 삭제: ' + str(path))
+                        except (zipfile.BadZipFile, WolfError, OSError, RuntimeError, NotImplementedError) as exc:
+                            if isinstance(exc, (Cancelled, Blocked)):
+                                raise
+                            self.warn(path.name + ': 중복 보관 정리 검증 실패, 파일 유지')
+                    # rmdir is deliberately non-recursive: unknown files prevent removal.
+                    if not any(backup.iterdir()):
+                        backup.rmdir()
+                        self.log('INFO', '빈 중복 보관 폴더 삭제: ' + str(backup))
+        finally:
+            write_json(ledger_path, ledger)
+
     def compress_existing(self, work, folder):
         if not folder.exists():
             return
@@ -555,6 +631,8 @@ class Engine:
             self.result(base_url=domain)
             self.status(status='done', message='도메인 정상', base_url=domain)
             return
+        if mode in ('download', 'reconcile'):
+            self.cleanup_duplicates()
         domain = self.connect(force=(mode == 'resolve'))
         if mode == 'resolve':
             self.result(base_url=domain)
