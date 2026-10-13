@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from xml.etree import ElementTree as ET
 
-from client import Client, parse_images, image_extension
+from client import Client, parse_images, image_extension, clean_work_title
 from common import WolfError, Blocked, Cancelled, atomic_bytes, inside, read_json, safe_name, title_ids, write_json
 from domains import resolve, verify
 from history import History
@@ -92,7 +92,30 @@ class Engine:
         return new
 
     def work_dir(self, work):
-        return inside(self.config['download_path'], '{} [{}]'.format(safe_name(work['title']), work['id']))
+        title = clean_work_title(work['title'])
+        if not title:
+            raise WolfError('작품명을 확인하지 못해 저장을 중지했습니다.')
+        root = Path(self.config['download_path']).resolve()
+        name = safe_name(title)
+        names = (name, '{} [{}]'.format(name, work['id']))
+        matches = []
+        # Look only at exact names in the selected root and the legacy root.
+        # Do not recursively scan every episode or merge ambiguous libraries.
+        for parent in (root, inside(root, 'manhwa')):
+            for candidate in names:
+                path = inside(root, str(parent.relative_to(root)), candidate)
+                if not path.is_dir():
+                    continue
+                marker = read_json(path / '.wolf-work.json', {})
+                if marker and str(marker.get('id')) != str(work['id']):
+                    raise WolfError('같은 작품명 폴더에 다른 작품 ID가 있습니다: ' + str(path))
+                if path not in matches:
+                    matches.append(path)
+        if len(matches) > 1:
+            raise WolfError('기존 작품 폴더가 여러 개입니다. 다운로드 경로를 한 폴더만 포함하도록 지정하세요: ' + ', '.join(str(p) for p in matches))
+        if matches:
+            return matches[0]
+        return inside(root, names[1])
 
     def episode_name(self, ep):
         no = ep['no']
