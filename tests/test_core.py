@@ -162,7 +162,7 @@ class CoreTests(unittest.TestCase):
         backup = plain.parent / '.duplicates'
         ledger = read_json(self.root / 'duplicate-retention.json')
         since = next(iter(ledger.values()))['since']
-        lifetime = self.conf['basic_interval'] * 60 * 30
+        lifetime = self.conf['backup_retention_days'] * 86400
         with patch('engine.time.time', return_value=since + lifetime - 1):
             self.engine.cleanup_duplicates()
         self.assertTrue(backup.exists())
@@ -181,7 +181,7 @@ class CoreTests(unittest.TestCase):
         os.utime(old, (1, 1))
         self.engine.cleanup_duplicates()
         self.assertTrue(old.exists())
-        with patch('engine.time.time', return_value=time.time() + self.conf['basic_interval'] * 60 * 31):
+        with patch('engine.time.time', return_value=time.time() + (self.conf['backup_retention_days'] + 1) * 86400):
             self.engine.cleanup_duplicates()
         self.assertTrue(old.exists())
 
@@ -216,11 +216,59 @@ class CoreTests(unittest.TestCase):
         path = plain.parent / '.duplicates' / plain.name
         with zipfile.ZipFile(path, 'a') as archive:
             archive.writestr('note.txt', 'modified')
-        future = time.time() + self.conf['basic_interval'] * 60 * 31
+        future = time.time() + (self.conf['backup_retention_days'] + 1) * 86400
         with patch('engine.time.time', return_value=future):
             self.engine.cleanup_duplicates()
         self.assertTrue(path.exists())
         self.assertEqual(read_json(self.root / 'duplicate-retention.json')[str(path)]['since'], future)
+
+    def test_different_content_backups_expire_but_primary_survives(self):
+        self.make_archive('0003_시험 작품 3화.zip', [PNG + b'other', PNG])
+        self.make_archive('0003_시험 작품 3화#2.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        primary = Path(self.engine.history.get('42', '3')['path'])
+        before = primary.read_bytes()
+        backups = [p for p in primary.parent.glob('*.zip') if p != primary]
+        self.assertEqual(len(backups), 1)
+        with patch('engine.time.time', return_value=time.time() + 8 * 86400):
+            self.engine.cleanup_duplicates()
+        self.assertEqual(primary.read_bytes(), before)
+        self.assertFalse(backups[0].exists())
+
+    def test_different_page_counts_retained_in_ledger_expire(self):
+        self.make_archive('0003_시험 작품 3화.zip', [PNG] * 3)
+        self.make_archive('0003_시험 작품 3화#2.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        primary = Path(self.engine.history.get('42', '3')['path'])
+        with patch('engine.time.time', return_value=time.time() + 8 * 86400):
+            self.engine.cleanup_duplicates()
+        self.assertEqual(list(primary.parent.glob('*.zip')), [primary])
+
+    def test_retention_disabled_and_history_primary_preserved(self):
+        self.make_archive('0003_시험 작품 3화.zip', [PNG + b'other', PNG])
+        self.make_archive('0003_시험 작품 3화#2.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        folder = self.engine.work_dir(WORK)
+        paths = list(folder.glob('*.zip'))
+        self.conf['backup_retention_days'] = 0
+        with patch('engine.time.time', return_value=time.time() + 100 * 86400):
+            self.engine.cleanup_duplicates()
+        self.assertTrue(all(p.exists() for p in paths))
+        # Even a [보존-N] file becomes protected if history selects it as primary.
+        alternative = next(p for p in paths if '[보존-' in p.name)
+        self.engine.history.save('42', '3', path=str(alternative))
+        self.conf['backup_retention_days'] = 1
+        with patch('engine.time.time', return_value=time.time() + 100 * 86400):
+            self.engine.cleanup_duplicates()
+        self.assertTrue(alternative.exists())
+
+    def test_retention_days_validation(self):
+        self.assertEqual(validate(dict(self.conf, backup_retention_days='0'))['backup_retention_days'], 0)
+        with self.assertRaises(WolfError):
+            validate(dict(self.conf, backup_retention_days=-1))
 
     def test_wrong_hash_count_corrected_from_images(self):
         old = self.make_archive('0003_시험 작품 177화#77.zip')
