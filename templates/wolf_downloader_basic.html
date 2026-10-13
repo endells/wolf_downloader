@@ -5,7 +5,7 @@
 .wd [role="tabpanel"][hidden]{display:none!important}.wd-settings-tabs button{padding:6px 12px;border:1px solid #9995;border-radius:5px;background:transparent;color:inherit;cursor:pointer}.wd-settings-tabs button.active{background:#287360;color:#fff}.wd-settings-tabs button:focus-visible{outline:2px solid #388a71;outline-offset:2px}
 </style>
 <div class="wd">
-<h3>늑대 다운로더 <small>0.1.11 · 독립 작업 프로세스</small></h3>
+<h3>늑대 다운로더 <small>0.1.12 · 독립 작업 프로세스</small></h3>
 <div class="wd-status" aria-live="polite">
  <div class="wd-line"><strong>작업 상태</strong><span id="state" class="wd-grow">확인 중…</span><button id="stop" class="btn btn-sm btn-outline-danger">중지</button></div>
  <div class="wd-meta"><span id="counts">회차 0 / 0</span><span id="pages">이미지 0 / 0</span><span id="schedule"></span><span id="domain"></span></div>
@@ -43,10 +43,10 @@
 
 <label for="announcer_url">도메인 공지 채널</label><input id="announcer_url" type="text" value="{{ config.announcer_url }}"><small>기존 채널의 새 채널 안내 링크도 최대 3곳까지 따라갑니다.</small>
 <label for="cookie">브라우저 Cookie 헤더 값</label><input id="cookie" type="password" autocomplete="new-password" placeholder="{% if secrets_saved.cookie %}저장된 쿠키 있음 · 비우면 유지{% else %}선택 입력{% endif %}"><label class="wd-check"><input id="clear_cookie" type="checkbox"> 저장된 쿠키 삭제</label><small>JSON이 아닌 Cookie 헤더 문자열. 입력한 도메인에만 전송합니다. 도메인이 바뀌면 새 도메인에서 받은 쿠키를 다시 저장하세요.</small>
-{% for key,label in [('notify_webhook_download','다운로드 완료 알림'),('notify_webhook_alert','도메인 · 오류 알림')] %}
+{% for key,label in [('notify_webhook_download','다운로드 · 기존 파일 이력 반영 완료 알림'),('notify_webhook_alert','도메인 변경 · 오류 알림')] %}
 <label for="{{ key }}">{{ label }} 웹훅 (Discord / Slack)</label><input id="{{ key }}" type="password" autocomplete="new-password" placeholder="{% if secrets_saved[key] %}저장됨 · 비우면 유지{% else %}선택 입력{% endif %}"><label class="wd-check"><input id="clear_{{ key }}" type="checkbox"> 저장된 URL 삭제</label>
 {% endfor %}
-<div class="wd-actions"><button class="btn btn-outline-secondary notify job" data-kind="download">완료 알림 테스트</button><button class="btn btn-outline-secondary notify job" data-kind="alert">오류 알림 테스트</button></div>
+<div class="wd-actions"><button class="btn btn-outline-secondary notify job" data-kind="download">완료 알림 테스트</button><button class="btn btn-outline-secondary notify job" data-kind="alert">도메인 · 오류 알림 테스트</button></div>
 <label for="viewer_selector">본문 이미지 영역 선택자</label><input id="viewer_selector" type="text" value="{{ config.viewer_selector }}"><small>#id, .class, 태그를 쉼표로 구분. 영역을 찾지 못하면 광고 영역을 제외한 img[data-src]를 사용합니다.</small>
 <label for="search_path">검색 경로 (자동 감지 실패 시)</label><input id="search_path" type="text" value="{{ config.search_path }}" placeholder="실제 사이트 검색 URL에서 검색어를 {query}로 치환"><small>사이트 검색 폼을 먼저 자동 감지합니다. 설정 시 실제 검색 URL 경로를 사용하세요.</small>
 </section>
