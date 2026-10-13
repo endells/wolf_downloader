@@ -316,6 +316,53 @@ class CoreTests(unittest.TestCase):
                 Engine.connect(self.engine, force=True)
         notify.assert_not_called()
 
+    def test_zero_byte_zip_repaired_even_with_download_limit(self):
+        path = self.make_archive('0003_3화.zip')
+        path.write_bytes(b'')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        self.assertEqual(self.engine.state['repaired'], 1)
+        self.assertTrue(path.with_name('0003_3화 #2.zip').exists())
+        self.assertFalse(path.exists())
+        self.assertFalse(self.conf['use_compress'])
+
+    def test_repair_failure_retains_broken_file(self):
+        path = self.make_archive('0003_3화.zip')
+        path.write_bytes(b'')
+        self.client.fail = True
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        self.assertTrue(path.exists())
+        self.assertEqual(self.engine.history.get('42', '3')['status'], 'failed')
+
+    def test_repair_rejects_conflicting_chapter(self):
+        path = self.make_archive('0003_다른 작품 9화.zip')
+        path.write_bytes(b'')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        self.assertTrue(path.exists())
+        self.assertEqual(self.client.downloads, [])
+
+    def test_repair_rejects_neighbor_number_conflict(self):
+        path = self.make_archive('0003_3화.zip')
+        path.write_bytes(b'')
+        self.make_archive('0002_8화.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        self.assertTrue(path.exists())
+        self.assertEqual(self.client.downloads, [])
+
+    def test_repair_allows_prefix_and_chapter_offset(self):
+        path = self.make_archive('0003_작품 177화.zip')
+        path.write_bytes(b'')
+        work = copy.deepcopy(WORK)
+        work['episodes'][2]['title'] = '작품 177화'
+        self.job['mode'] = 'reconcile'
+        with patch.object(self.client, 'work', return_value=work):
+            self.engine.run()
+        self.assertTrue(path.with_name('0003_작품 177화 #2.zip').exists())
+        self.assertEqual(self.engine.state['repaired'], 1)
+
     def test_wrong_hash_count_corrected_from_images(self):
         old = self.make_archive('0003_시험 작품 177화#77.zip')
         self.job['mode'] = 'reconcile'
@@ -401,13 +448,15 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(record['pages'], 3)
         self.assertTrue(record['path'].endswith(' #3.zip'))
 
-    def test_invalid_zip_is_preserved_without_history(self):
+    def test_invalid_zip_is_repaired(self):
         old = self.make_archive('0003_시험 작품.zip')
         old.write_bytes(b'broken')
         self.job['mode'] = 'reconcile'
         self.engine.run()
-        self.assertTrue(old.exists())
-        self.assertIsNone(self.engine.history.get('42', '3'))
+        self.assertFalse(old.exists())
+        record = self.engine.history.get('42', '3')
+        self.assertEqual(record['status'], 'completed')
+        self.assertTrue(Path(record['path']).exists())
 
     def test_zip_signature_reads_each_entry_once(self):
         path = self.make_archive('0003_시험 작품 3화.zip')
