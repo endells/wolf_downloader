@@ -6,6 +6,7 @@ import re
 import shutil
 import time
 import zipfile
+from collections import Counter
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from xml.etree import ElementTree as ET
@@ -21,6 +22,9 @@ class Engine:
         self.directory, self.job = Path(directory), job
         self.config, self.args = job['config'], job.get('args', {})
         self.client = client or Client(self.config, lambda: (self.directory / 'cancel').exists())
+        if job['mode'] in ('reconcile', 'metadata', 'compress'):
+            # Worker-local override; saved/download settings stay unchanged.
+            self.client.config = dict(self.client.config, request_delay=min(float(self.config.get('request_delay', 1.5)), .5))
         self.history = History(self.directory / 'history.db')
         self.history.interrupt_stale()
         self.state = {'id': job['id'], 'mode': job['mode'], 'status': 'running',
@@ -155,14 +159,15 @@ class Engine:
         return '{} #{}.zip'.format(self.episode_name(ep), pages)
 
     def archive_signature(self, path):
-        self.verify_zip(path)
         with zipfile.ZipFile(path) as archive:
             images = [i for i in archive.infolist() if Path(i.filename).suffix.lower() in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif')]
             if not images or any(i.file_size <= 0 for i in images):
                 raise WolfError('이미지가 없는 ZIP입니다.')
             # Hash decompressed image bytes to confirm duplicates, not just counts.
             hashes = []
-            for item in images:
+            image_names = {i.filename for i in images}
+            processed = 0
+            for item in archive.infolist():
                 digest = hashlib.sha256()
                 with archive.open(item) as stream:
                     while True:
@@ -170,10 +175,19 @@ class Engine:
                         chunk = stream.read(256 * 1024)
                         if not chunk:
                             break
-                        digest.update(chunk)
-                        self.client.wait(.005)
-                hashes.append(digest.hexdigest())
+                        if item.filename in image_names:
+                            digest.update(chunk)
+                        processed += len(chunk)
+                        if processed >= 8 * 1024 * 1024:
+                            self.client.wait(.001)
+                            processed = 0
+                if item.filename in image_names:
+                    hashes.append(digest.hexdigest())
             return tuple(sorted(hashes))
+
+    def file_stamp(self, path):
+        stat = path.stat()
+        return [str(path), stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino, stat.st_dev]
 
     def metadata(self, work, folder):
         folder.mkdir(parents=True, exist_ok=True)
@@ -326,6 +340,12 @@ class Engine:
             return
         if not folder.is_dir():
             return
+        cache_path = self.directory / ('reconcile-cache-' + str(work['id']) + '.json')
+        cache = read_json(cache_path, {})
+        context = [self.client.base, self.config.get('domain_family'), self.config.get('viewer_selector'), self.config['episode_digits']]
+        if cache.get('context') != context:
+            cache = {'context': context, 'episodes': {}}
+        entries = cache.setdefault('episodes', {})
         groups = {}
         for path in folder.iterdir():
             if path.is_symlink() or (not path.is_dir() and path.suffix.lower() not in ('.zip', '.cbz')):
@@ -333,16 +353,25 @@ class Engine:
             match = re.match(r'^(\d+(?:\.\d+)?)_', path.name)
             if match:
                 groups.setdefault(float(match.group(1)), []).append(path)
-        numbers = [float(ep['no']) for ep in work['episodes']]
+        numbers = Counter(float(ep['no']) for ep in work['episodes'])
         for ep in work['episodes']:
             self.client.check()
             number = float(ep['no'])
             candidates = groups.get(number, [])
             if not candidates:
                 continue
-            if numbers.count(number) != 1:
+            if numbers[number] != 1:
                 self.warn('사이트 목록 번호가 중복되어 건너뜀: ' + str(ep['no']))
                 continue
+            cached = entries.get(ep['id'], {})
+            if (len(candidates) == 1 and candidates[0].is_file()
+                    and 0 <= time.time() - cached.get('time', 0) < 86400
+                    and cached.get('stamp') == self.file_stamp(candidates[0])):
+                self.history.save(work['id'], ep['id'], work_title=work['title'], title=ep['title'], status='completed', path=str(candidates[0]), pages=cached['pages'], error='')
+                self.state['completed'] += 1
+                self.status(message='변경 없는 ZIP 검증 결과 재사용: ' + candidates[0].name)
+                continue
+            entries.pop(ep['id'], None)
             html, url = self.client.html(self.client.base + '/view?' + urlencode({'toon': work['id'], 'num': ep['id']}))
             expected = len(parse_images(html, url, self.config['viewer_selector']))
             valid = []
@@ -397,6 +426,11 @@ class Engine:
             self.history.save(work['id'], ep['id'], work_title=work['title'], title=ep['title'], status='completed', path=str(found), pages=expected, error='')
             self.state['completed'] += 1
             self.status(message='기존 파일 이름 정리 및 이력 반영 중')
+            remaining = {p for p in candidates + [found] if p.exists()}
+            if remaining == {found} and found.is_file():
+                entries[ep['id']] = {'time': time.time(), 'stamp': self.file_stamp(found), 'pages': expected}
+        cache['episodes'] = {ep['id']: entries[ep['id']] for ep in work['episodes'] if ep['id'] in entries}
+        write_json(cache_path, cache)
 
     def compress_existing(self, work, folder):
         if not folder.exists():
