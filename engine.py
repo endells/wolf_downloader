@@ -57,6 +57,24 @@ class Engine:
     def result(self, **values):
         write_json(self.directory / 'result.json', dict(values, job_id=self.job['id']))
 
+    def notify_downloaded(self, work, episodes):
+        """Report only successful episodes, splitting without losing numbers."""
+        if not episodes:
+            return
+        title = ' '.join(str(work['title']).split())[:300]
+        header = '늑대 다운로더 다운로드 완료\n웹툰: {}\n회차: '.format(title)
+        message = header
+        for ep in episodes:
+            number = float(ep['no'])
+            label = '{}화'.format(int(number) if number.is_integer() else number)
+            addition = (', ' if message != header else '') + label
+            if len(message) + len(addition) > 1700:
+                self.notify('download', message)
+                message = header + label
+            else:
+                message += addition
+        self.notify('download', message)
+
     def connect(self, force=False):
         cached = read_json(self.directory / 'domain.json', {})
         if cached.get('configured_base') == self.config['base_url'] and cached.get('family') == self.config['domain_family']:
@@ -304,6 +322,8 @@ class Engine:
         for wid in ids:
             self.client.check()
             self.status(message='작품 분석 중: ' + wid)
+            downloaded = []
+            work = None
             try:
                 work = self.client.work(wid)
                 folder = self.work_dir(work)
@@ -343,6 +363,7 @@ class Engine:
                         # Manual selection intentionally re-downloads completed episodes.
                         self.download_episode(work, ep, folder)
                         self.state['completed'] += 1
+                        downloaded.append(ep)
                     except Cancelled:
                         self.history.save(wid, ep['id'], status='interrupted', error='사용자 중지')
                         raise
@@ -362,6 +383,9 @@ class Engine:
             except WolfError as exc:
                 self.state['failed'] += 1
                 self.warn(wid + ': ' + str(exc))
+            finally:
+                if mode == 'download' and downloaded:
+                    self.notify_downloaded(work, downloaded)
         self.status(status='done', message='작업 완료: 성공 {}, 실패 {}'.format(self.state['completed'], self.state['failed']))
         if mode == 'download' and self.state['completed']:
             self.notify('download', '늑대 다운로더: {}회차 완료 / {}건 실패'.format(self.state['completed'], self.state['failed']))
