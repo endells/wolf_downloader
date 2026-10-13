@@ -40,6 +40,10 @@ class History:
                 db.execute("UPDATE episodes SET work_title=?, title=?, status='completed', path=?, pages=?, error='', updated=? WHERE work_id=? AND ep_id=?",
                            (title, episode, path, pages, updated, str(wid), str(eid)))
 
+    def completed_paths(self, wid):
+        with self.connect() as db:
+            return {row['path'] for row in db.execute("SELECT path FROM episodes WHERE work_id=? AND status='completed'", (str(wid),)) if row['path']}
+
     def get(self, wid, ep):
         with self.connect() as db:
             row = db.execute('SELECT * FROM episodes WHERE work_id=? AND ep_id=?', (str(wid), str(ep))).fetchone()
