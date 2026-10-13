@@ -5,7 +5,7 @@
 .wd [role="tabpanel"][hidden]{display:none!important}.wd-settings-tabs button{padding:6px 12px;border:1px solid #9995;border-radius:5px;background:transparent;color:inherit;cursor:pointer}.wd-settings-tabs button.active{background:#287360;color:#fff}.wd-settings-tabs button:focus-visible{outline:2px solid #388a71;outline-offset:2px}
 </style>
 <div class="wd">
-<h3>늑대 다운로더 <small>0.1.6 · 독립 작업 프로세스</small></h3>
+<h3>늑대 다운로더 <small>0.1.7 · 독립 작업 프로세스</small></h3>
 <div class="wd-status" aria-live="polite">
  <div class="wd-line"><strong>작업 상태</strong><span id="state" class="wd-grow">확인 중…</span><button id="stop" class="btn btn-sm btn-outline-danger">중지</button></div>
  <div class="wd-meta"><span id="counts">회차 0 / 0</span><span id="pages">이미지 0 / 0</span><span id="schedule"></span><span id="domain"></span></div>
@@ -90,7 +90,7 @@ async function poll(){
  try{
   const {state:s}=await call('status');active=s.active;updateButtons();
   text('state',s.message||s.status);text('counts','회차 '+(s.done||0)+' / '+(s.total||0)+' · 완료 '+(s.completed||0)+' · 실패 '+(s.failed||0));
-  text('pages','이미지 '+(s.pages_done||0)+' / '+(s.pages_total||0));text('schedule','자동 수집 '+(s.scheduler_enabled?'사용':'꺼짐'));text('domain',s.base_url||'');text('warnings',(s.warnings||[]).join('\n'));
+  text('pages','이미지 '+(s.pages_done||0)+' / '+(s.pages_total||0));text('schedule','자동 수집 '+(s.scheduler_enabled?'사용':'꺼짐'));text('domain',s.base_url||'');text('warnings',(s.warnings||[]).concat(s.log_error?[s.log_error]:[]).join('\n'));
   $id('bar').style.width=(s.total?Math.min(100,(s.done||0)/s.total*100):0)+'%';text('details',[s.work_title,s.episode,s.message,s.staging_path?'임시 저장: '+s.staging_path:'',s.target_path?'완료 예정: '+s.target_path:''].filter(Boolean).join(' / '));
   if(!active&&s.id&&resultId!==s.id){const r=await call('result');if(r.result.job_id===s.id){showResult(r.result);resultId=s.id;}}
  }catch(e){message(e.message,true);}finally{polling=false;if(alive)pollTimer=setTimeout(poll,active?2000:5000);}
