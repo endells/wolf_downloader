@@ -1,0 +1,45 @@
+2026-10-13
+Python 3.12; Linux; Flask fixture with official FF API cross-check.
+Real FF runtime and target website download NOT tested.
+
+test_all_pages_render_and_javascript_parses (test_adapter.AdapterTests.test_all_pages_render_and_javascript_parses) ... ok
+test_bad_selected_input_rejected (test_adapter.AdapterTests.test_bad_selected_input_rejected) ... ok
+test_csrf_required (test_adapter.AdapterTests.test_csrf_required) ... ok
+test_enabling_schedule_does_not_run_immediately (test_adapter.AdapterTests.test_enabling_schedule_does_not_run_immediately) ... ok
+test_invalid_webhook_rejected (test_adapter.AdapterTests.test_invalid_webhook_rejected) ... ok
+test_manual_selected_forwarded_without_limits (test_adapter.AdapterTests.test_manual_selected_forwarded_without_limits) ... ok
+test_save_and_auto_add_do_not_start_download (test_adapter.AdapterTests.test_save_and_auto_add_do_not_start_download) ... ok
+test_secret_not_in_rendered_page (test_adapter.AdapterTests.test_secret_not_in_rendered_page) ... ok
+test_analyze_creates_no_downloads (test_core.CoreTests.test_analyze_creates_no_downloads) ... ok
+test_atomic_secret_file_mode (test_core.CoreTests.test_atomic_secret_file_mode) ... ok
+test_automatic_skips_completed_files (test_core.CoreTests.test_automatic_skips_completed_files) ... ok
+test_cancel_and_block_stop_queue (test_core.CoreTests.test_cancel_and_block_stop_queue) ... ok
+test_changed_download_root_does_not_skip (test_core.CoreTests.test_changed_download_root_does_not_skip) ... ok
+test_compress_only_managed_completed_folder (test_core.CoreTests.test_compress_only_managed_completed_folder) ... ok
+test_direct_path_and_automatic_limit (test_core.CoreTests.test_direct_path_and_automatic_limit) ... ok
+test_existing_unmanaged_folder_preserved (test_core.CoreTests.test_existing_unmanaged_folder_preserved) ... ok
+test_failed_episode_not_marked_complete_and_resume (test_core.CoreTests.test_failed_episode_not_marked_complete_and_resume) ... ok
+test_manual_ignores_limit_and_completed_history (test_core.CoreTests.test_manual_ignores_limit_and_completed_history) ... ok
+test_manual_zip_replacement_preserves_valid_archive (test_core.CoreTests.test_manual_zip_replacement_preserves_valid_archive) ... ok
+test_partial_legacy_files_not_marked_completed (test_core.CoreTests.test_partial_legacy_files_not_marked_completed) ... ok
+test_path_escape_symlink_and_bad_values (test_core.CoreTests.test_path_escape_symlink_and_bad_values) ... ok
+test_unknown_selected_episode_is_not_silently_omitted (test_core.CoreTests.test_unknown_selected_episode_is_not_silently_omitted) ... ok
+test_zip_contains_all_images_no_recompression (test_core.CoreTests.test_zip_contains_all_images_no_recompression) ... ok
+test_announcement_migration_and_family_filter (test_core.ParserTests.test_announcement_migration_and_family_filter) ... ok
+test_catalog_thumbnail_title_and_pagination (test_core.ParserTests.test_catalog_thumbnail_title_and_pagination) ... ok
+test_cookie_is_scoped_to_saved_origin (test_core.ParserTests.test_cookie_is_scoped_to_saved_origin) ... ok
+test_episode_list_title_dedup_order_and_pages (test_core.ParserTests.test_episode_list_title_dedup_order_and_pages) ... ok
+test_image_signatures (test_core.ParserTests.test_image_signatures) ... ok
+test_images_dedup_and_exclude_banner (test_core.ParserTests.test_images_dedup_and_exclude_banner) ... ok
+test_missing_images_error (test_core.ParserTests.test_missing_images_error) ... ok
+test_redirect_strips_cookie (test_core.ParserTests.test_redirect_strips_cookie) ... ok
+test_resolver_disabled_does_not_probe_other_domains (test_core.ParserTests.test_resolver_disabled_does_not_probe_other_domains) ... ok
+test_resolver_rejects_dead_candidates_before_update (test_core.ParserTests.test_resolver_rejects_dead_candidates_before_update) ... ok
+test_crash_state_recovers (test_core.ProcessTests.test_crash_state_recovers) ... ok
+test_lock_survives_parent_and_rejects_duplicate (test_core.ProcessTests.test_lock_survives_parent_and_rejects_duplicate) ... ok
+test_real_child_lifecycle_no_network_and_secret_cleanup (test_core.ProcessTests.test_real_child_lifecycle_no_network_and_secret_cleanup) ... ok
+
+----------------------------------------------------------------------
+Ran 36 tests in 1.167s
+
+OK
