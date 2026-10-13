@@ -36,6 +36,19 @@ class History:
             row = db.execute('SELECT * FROM episodes WHERE work_id=? AND ep_id=?', (str(wid), str(ep))).fetchone()
         return dict(row) if row else None
 
+    def relocate_work(self, wid, old, new):
+        """Update only this work's paths beneath a renamed directory."""
+        old, new = Path(old), Path(new)
+        with self.connect() as db:
+            rows = db.execute('SELECT ep_id, path FROM episodes WHERE work_id=?', (str(wid),)).fetchall()
+            for row in rows:
+                try:
+                    relative = Path(row['path'] or '').relative_to(old)
+                except ValueError:
+                    continue
+                db.execute('UPDATE episodes SET path=? WHERE work_id=? AND ep_id=?',
+                           (str(new / relative), str(wid), row['ep_id']))
+
     def rows(self, page=1, query='', status=''):
         where, args = ['1=1'], []
         if query:
