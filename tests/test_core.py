@@ -119,9 +119,40 @@ class CoreTests(unittest.TestCase):
         tagged = self.make_archive('0003_시험 작품 177화#2.zip')
         self.job['mode'] = 'reconcile'
         self.engine.run()
-        self.assertTrue(plain.exists())
+        self.assertTrue(plain.with_name('0003_시험 작품 177화 [보존-2] #2.zip').exists())
         self.assertTrue(tagged.with_name('0003_시험 작품 177화 #2.zip').exists())
         self.assertFalse((plain.parent / '.duplicates').exists())
+
+    def test_duplicate_archives_use_own_counts_without_site_or_decompression(self):
+        plain = self.make_archive('0003_국정원 말단직원 29화.zip', [PNG] * 3)
+        tagged = self.make_archive('0003_국정원 말단직원 29화#95.zip', [PNG] * 4)
+        self.job['mode'] = 'reconcile'
+        with patch.object(self.client, 'html', side_effect=AssertionError('viewer')), patch.object(self.engine, 'archive_signature', side_effect=AssertionError('unneeded hash')):
+            self.engine.run()
+        self.assertTrue(plain.with_name('0003_국정원 말단직원 29화 #3.zip').exists())
+        self.assertTrue(tagged.with_name('0003_국정원 말단직원 29화 #4.zip').exists())
+        self.assertFalse((plain.parent / '.duplicates').exists())
+        self.assertFalse(any('이미지 수가 맞지 않아' in w for w in self.engine.state['warnings']))
+
+    def test_duplicate_equal_archives_normalize_despite_viewer_mismatch(self):
+        plain = self.make_archive('0003_국정원 말단직원 29화.zip', [PNG] * 3)
+        tagged = self.make_archive('0003_국정원 말단직원 29화#95.zip', [PNG] * 3)
+        self.job['mode'] = 'reconcile'
+        with patch.object(self.client, 'html', side_effect=AssertionError('viewer')):
+            self.engine.run()
+        self.assertTrue(tagged.with_name('0003_국정원 말단직원 29화 #3.zip').exists())
+        self.assertTrue((plain.parent / '.duplicates' / plain.name).exists())
+        self.assertEqual(self.engine.history.get('42', '3')['pages'], 3)
+
+    def test_conflicting_content_names_are_stable_on_second_run(self):
+        self.make_archive('0003_시험 작품 177화.zip', [PNG + b'other', PNG])
+        old = self.make_archive('0003_시험 작품 177화#2.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        first = sorted((p.name, p.read_bytes()) for p in old.parent.glob('*.zip'))
+        self.engine.run()
+        self.assertEqual(first, sorted((p.name, p.read_bytes()) for p in old.parent.glob('*.zip')))
+        self.assertEqual(len(first), 2)
 
     def test_wrong_hash_count_corrected_from_images(self):
         old = self.make_archive('0003_시험 작품 177화#77.zip')
