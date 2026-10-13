@@ -62,7 +62,7 @@ DEFAULTS = {
     'announcer_url': 'https://t.me/s/wftoon', 'auto_resolve_base_url': 'True',
     'domain_family': 'wfwf', 'max_per_run': '5', 'episode_digits': '4',
     'request_delay': '1.5', 'bandwidth_mib': '2', 'use_compress': 'False',
-    'basic_auto_start': 'False', 'basic_interval': '360',
+    'basic_auto_start': 'False', 'basic_interval': '360', 'backup_retention_days': '7',
     'viewer_selector': '#toon_img, #toonimg, #viewer, .viewer, .toon_img, .wt_viewer',
     'search_path': '',
 }
@@ -105,7 +105,7 @@ def validate(raw):
     c['announcer_url'] = 'https://t.me' + a.path
     if not re.fullmatch(r'[a-z][a-z0-9-]{1,25}', str(c['domain_family'])):
         raise WolfError('도메인 계열은 wfwf 또는 wftoon처럼 입력하세요.')
-    for key, lo, hi in [('max_per_run', 0, 10000), ('episode_digits', 1, 10), ('basic_interval', 10, 10080)]:
+    for key, lo, hi in [('max_per_run', 0, 10000), ('episode_digits', 1, 10), ('basic_interval', 10, 10080), ('backup_retention_days', 0, 3650)]:
         try:
             c[key] = int(c[key])
         except (ValueError, TypeError):
