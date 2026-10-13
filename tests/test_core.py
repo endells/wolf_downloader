@@ -79,30 +79,92 @@ class CoreTests(unittest.TestCase):
         self.assertIn('/시험 작품 [42]/', row['path'])
         self.assertIsNone(self.engine.history.get('42', '1'))
 
-    def test_reuse_plain_title_folder_without_database(self):
+    def test_download_ignores_plain_title_folder(self):
         folder = self.root / 'downloads' / WORK['title']
         folder.mkdir(parents=True)
         self.engine.run()
-        self.assertEqual(Path(self.engine.history.get('42', '3')['path']).parent, folder)
-        self.assertFalse((folder.parent / '시험 작품 [42]').exists())
+        self.assertEqual(Path(self.engine.history.get('42', '3')['path']).parent.name, '시험 작품 [42]')
+        self.assertEqual(list(folder.iterdir()), [])
 
     def test_reuse_legacy_title_folder(self):
         folder = self.root / 'downloads' / 'manhwa' / WORK['title']
         folder.mkdir(parents=True)
-        self.assertEqual(self.engine.work_dir(WORK), folder)
+        self.assertEqual(self.engine.work_dir(WORK, migrate=True), folder.with_name('시험 작품 [42]'))
+        self.assertFalse(folder.exists())
 
     def test_ambiguous_existing_folders_stop(self):
         for name in ('시험 작품', '시험 작품 [42]'):
             (self.root / 'downloads' / name).mkdir(parents=True)
         with self.assertRaises(WolfError):
-            self.engine.work_dir(WORK)
+            self.engine.work_dir(WORK, migrate=True)
 
     def test_other_work_marker_not_reused(self):
         folder = self.root / 'downloads' / WORK['title']
         folder.mkdir(parents=True)
         write_json(folder / '.wolf-work.json', {'id': '999'})
         with self.assertRaises(WolfError):
-            self.engine.work_dir(WORK)
+            self.engine.work_dir(WORK, migrate=True)
+
+    def test_reconcile_renames_registered_only_and_updates_history(self):
+        plain = self.root / 'downloads' / WORK['title']
+        plain.mkdir(parents=True)
+        (plain / 'keep.txt').write_text('preserve')
+        unrelated = plain.with_name('다른 다운로더 작품')
+        unrelated.mkdir()
+        self.engine.history.save('42', '99', path=str(plain / 'old.zip'), status='failed')
+        self.job['mode'] = 'reconcile'
+        self.job['args']['work_id'] = '999'
+        with patch.object(self.client, 'work', wraps=self.client.work) as work:
+            self.engine.run()
+        work.assert_called_once_with('42')
+        tagged = plain.with_name('시험 작품 [42]')
+        self.assertEqual((tagged / 'keep.txt').read_text(), 'preserve')
+        self.assertTrue(unrelated.is_dir())
+        self.assertEqual(self.engine.history.get('42', '99')['path'], str(tagged / 'old.zip'))
+        self.engine.run()  # Already numbered: repeat safely.
+        self.assertTrue(tagged.is_dir())
+
+    def test_migration_collision_preserves_both(self):
+        root = self.root / 'downloads'
+        for name in ('시험 작품', '시험 작품 [42]'):
+            p = root / name
+            p.mkdir(parents=True)
+            (p / 'keep').write_text(name)
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        self.assertEqual(self.engine.state['failed'], 1)
+        for name in ('시험 작품', '시험 작품 [42]'):
+            self.assertEqual((root / name / 'keep').read_text(), name)
+
+    def test_unregistered_plain_folder_never_migrated(self):
+        folder = self.root / 'downloads' / WORK['title']
+        folder.mkdir(parents=True)
+        self.conf['titles'] = '999'
+        with self.assertRaises(WolfError):
+            self.engine.work_dir(WORK, migrate=True)
+        self.assertTrue(folder.exists())
+
+    def test_old_plain_history_does_not_skip_download(self):
+        folder = self.root / 'downloads' / WORK['title'] / 'old'
+        folder.mkdir(parents=True)
+        (folder / '1.png').write_bytes(PNG)
+        self.engine.history.save('42', '3', status='completed', path=str(folder), pages=1)
+        self.assertFalse(self.engine.complete(self.engine.history.get('42', '3')))
+
+    def test_redownload_history_shows_actual_stage_not_old_zip(self):
+        self.conf['use_compress'] = True
+        self.job['args'].update(work_id='42', selected=['3'])
+        self.engine.run()
+        original = self.client.image
+        observed = []
+        def image(*args):
+            observed.append(self.engine.history.get('42', '3'))
+            return original(*args)
+        with patch.object(self.client, 'image', side_effect=image):
+            self.engine.run()
+        self.assertTrue(observed)
+        self.assertTrue(all(r['status'] == 'downloading' and r['path'].endswith('/.download-3') for r in observed))
+        self.assertTrue(self.engine.history.get('42', '3')['path'].endswith('.zip'))
 
     def test_site_name_never_creates_directory(self):
         with self.assertRaises(WolfError):
@@ -213,6 +275,7 @@ class CoreTests(unittest.TestCase):
         self.job['mode'] = 'reconcile'
         self.engine.run()
         self.assertIsNone(self.engine.history.get('42', '3'))
+        folder = folder.parent.with_name('시험 작품 [42]') / folder.name
         (folder / '002.png').write_bytes(PNG)
         self.engine.run()
         self.assertEqual(self.engine.history.get('42', '3')['status'], 'completed')
