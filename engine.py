@@ -504,12 +504,32 @@ class Engine:
             downloaded = Path(record['path'])
             target = inside(folder, downloaded.name)
             broken_paths = {path for path, _ in broken}
-            if target.exists() and target not in broken_paths:
-                raise WolfError('정상 파일과 이름이 겹쳐 자동 교체하지 않았습니다.')
             if any(not path.exists() or self.file_stamp(path) != stamp for path, stamp in broken):
                 raise WolfError('복구 도중 기존 파일이 변경되어 자동 교체하지 않았습니다.')
             self.client.check()
-            os.replace(downloaded, target)
+            preserved = None
+            try:
+                if target.exists() and target not in broken_paths:
+                    if target.is_symlink() or not target.is_file():
+                        raise WolfError('대상 경로가 일반 ZIP 파일이 아니어서 교체하지 않았습니다.')
+                    backup = inside(folder, '.duplicates')
+                    backup.mkdir(exist_ok=True)
+                    preserved = inside(backup, target.name)
+                    index = 1
+                    while preserved.exists():
+                        preserved = inside(backup, target.stem + '.backup-' + str(index) + target.suffix)
+                        index += 1
+                    target.rename(preserved)
+                    ledger_path = self.directory / 'duplicate-retention.json'
+                    ledger = read_json(ledger_path, {})
+                    ledger[str(preserved)] = {'stamp': self.file_stamp(preserved), 'since': time.time()}
+                    write_json(ledger_path, ledger)
+                self.client.check()
+                os.replace(downloaded, target)
+            except BaseException:
+                if preserved is not None and preserved.exists() and not target.exists():
+                    preserved.rename(target)
+                raise
             for path, _ in broken:
                 if path != target:
                     path.unlink()
@@ -519,7 +539,7 @@ class Engine:
             self.notify_downloaded(work, [ep])
             if not any(repair_folder.iterdir()):
                 repair_folder.rmdir()
-            return [p for p in candidates if p not in broken_paths] + [target]
+            return [p for p in candidates if p not in broken_paths and p != target] + [target]
         except (Cancelled, Blocked):
             self.history.save(work['id'], ep['id'], status='interrupted', path=str(broken[0][0]), error='기존 ZIP 복구 중단')
             raise
@@ -532,6 +552,7 @@ class Engine:
                     detail = detail.replace(str(secret), '[REDACTED]')
             self.history.save(work['id'], ep['id'], status='failed', path=str(broken[0][0]), error='기존 ZIP 복구 실패: ' + detail)
             self.warn(ep['title'] + ': 재다운로드 실패, 기존 파일 유지 — ' + detail)
+            self.notify('alert', '늑대 다운로더 기존 파일 복구 실패\n작품: {}\n회차: {} (앞번호 {})\n상세 오류: {}\n기존 파일을 유지했습니다.'.format(work['title'], ep['title'], ep['no'], detail))
             return []
         finally:
             self.config['use_compress'] = compress
