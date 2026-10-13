@@ -79,6 +79,52 @@ class CoreTests(unittest.TestCase):
         self.assertIn('/시험 작품 [42]/', row['path'])
         self.assertIsNone(self.engine.history.get('42', '1'))
 
+    def test_notification_manual_title_and_selected_numbers(self):
+        self.job['args'].update(work_id='42', selected=['1', '3'])
+        with patch.object(self.engine, 'notify') as notify:
+            self.engine.run()
+        detail = notify.call_args_list[0].args
+        self.assertEqual(detail, ('download', '늑대 다운로더 다운로드 완료\n웹툰: 시험 작품\n회차: 1화, 3화'))
+
+    def test_notification_excludes_failed_episodes(self):
+        self.job['args'].update(work_id='42', selected=['1', '2'])
+        original = self.engine.download_episode
+        def download(work, ep, folder):
+            if ep['id'] == '2':
+                raise WolfError('test failure')
+            original(work, ep, folder)
+        with patch.object(self.engine, 'download_episode', side_effect=download), patch.object(self.engine, 'notify') as notify:
+            self.engine.run()
+        self.assertTrue(notify.call_args_list[0].args[1].endswith('회차: 1화'))
+        self.assertIn('1건 실패', notify.call_args_list[-1].args[1])
+
+    def test_notification_excludes_previously_completed(self):
+        self.conf['max_per_run'] = 0
+        self.engine.run()
+        with patch.object(self.engine, 'notify') as notify:
+            self.engine.run()
+        self.assertFalse(any('웹툰:' in call.args[1] for call in notify.call_args_list))
+
+    def test_notification_splits_long_list_without_loss(self):
+        episodes = [{'no': i} for i in range(1, 1001)] + [{'no': 1000.5}]
+        with patch.object(self.engine, 'notify') as notify:
+            self.engine.notify_downloaded(WORK, episodes)
+        messages = [call.args[1] for call in notify.call_args_list]
+        self.assertGreater(len(messages), 1)
+        self.assertTrue(all(len(m) <= 1700 and '웹툰: 시험 작품' in m for m in messages))
+        labels = [s for m in messages for s in m.split('회차: ')[1].split(', ')]
+        self.assertEqual(labels, [str(i) + '화' for i in range(1, 1001)] + ['1000.5화'])
+
+    def test_notification_separates_works(self):
+        self.conf['titles'] = '42\n43'
+        self.client.work = lambda wid: copy.deepcopy(dict(WORK, id=wid, title='작품 ' + wid))
+        with patch.object(self.engine, 'notify') as notify:
+            self.engine.run()
+        details = [call.args[1] for call in notify.call_args_list if '웹툰:' in call.args[1]]
+        self.assertEqual(len(details), 2)
+        self.assertIn('작품 42', details[0])
+        self.assertIn('작품 43', details[1])
+
     def test_manual_ignores_limit_and_completed_history(self):
         self.job['args'].update(work_id='42', selected=['1', '2', '3'])
         self.engine.run()
