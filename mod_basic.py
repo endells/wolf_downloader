@@ -9,7 +9,7 @@ from flask import jsonify, render_template, session
 from framework import F, Job
 from plugin import PluginModuleBase
 
-from .common import DEFAULTS, WolfError, parse_id, read_json, title_ids, validate, write_json
+from .common import DEFAULTS, WolfError, parse_id, read_json, title_ids, validate, write_json, write_log
 from .history import History
 from .manager import Manager
 
@@ -60,6 +60,7 @@ class ModuleBasic(PluginModuleBase):
     def plugin_load(self):
         self._manager()
         self.sync_schedule(self.config())
+        write_log(self.data_dir(), 'INFO', '플러그인 로드 완료 — 작업 로그 기록 시작')
 
     def plugin_unload(self):
         self._manager().cancel()
@@ -70,10 +71,10 @@ class ModuleBasic(PluginModuleBase):
     def scheduler_function(self):
         try:
             self._manager().start('download', self.runtime_config())
-        except WolfError as exc:
-            self.P.logger.info('늑대 자동 수집: %s', exc)
-        except Exception:
-            self.P.logger.exception('늑대 자동 수집 시작 실패')
+        except WolfError:
+            write_log(self.data_dir(), 'WARNING', '늑대 자동 수집 시작 불가: 진행 중 작업 또는 설정 확인 필요')
+        except Exception as exc:
+            write_log(self.data_dir(), 'ERROR', '늑대 자동 수집 시작 실패: ' + type(exc).__name__)
 
     def process_menu(self, page, req):
         if page not in ('setting', 'browse', 'manual', 'status', 'history'):
@@ -135,6 +136,7 @@ class ModuleBasic(PluginModuleBase):
                     for key, value in conf.items():
                         self.P.ModelSetting.set(key, str(value))
                     self.sync_schedule(conf, previous)
+                write_log(self.data_dir(), 'INFO', '설정 저장 완료 (다운로드 실행 없음)')
                 return jsonify(ret='success', msg='저장했습니다. 다운로드는 시작하지 않습니다.')
             if command == 'add_auto':
                 wid = parse_id(arg1)
@@ -143,6 +145,7 @@ class ModuleBasic(PluginModuleBase):
                     if wid not in ids:
                         ids.append(wid)
                         self.P.ModelSetting.set('titles', '\n'.join(ids))
+                write_log(self.data_dir(), 'INFO', '자동 수집 작품 등록: ' + wid)
                 return jsonify(ret='success', msg='자동 수집 목록에 등록했습니다. 즉시 다운로드하지 않습니다.')
             if command == 'browse_path':
                 path = Path(str(arg1 or '/'))
@@ -176,7 +179,8 @@ class ModuleBasic(PluginModuleBase):
             job = manager.start('download' if command == 'run' else command, self.runtime_config(), args)
             return jsonify(ret='success', msg='백그라운드 작업을 시작했습니다.', job_id=job)
         except (WolfError, ValueError, TypeError, KeyError) as exc:
+            write_log(self.data_dir(), 'WARNING', '요청 처리 실패: ' + type(exc).__name__)
             return jsonify(ret='error', msg=str(exc))
-        except Exception:
-            self.P.logger.exception('wolf_downloader command failed')
+        except Exception as exc:
+            write_log(self.data_dir(), 'ERROR', '요청 처리 오류: ' + type(exc).__name__)
             return jsonify(ret='error', msg='처리 실패: FF 로그를 확인하세요.')
