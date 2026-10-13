@@ -198,14 +198,75 @@ class Engine:
                     hashes.append(digest.hexdigest())
             return tuple(sorted(hashes))
 
-    def archive_page_count(self, path):
+    def archive_inventory(self, path):
         # Central directory only: no decompression, hashing or viewer request.
         with zipfile.ZipFile(path) as archive:
             images = [i for i in archive.infolist() if not i.is_dir()
                       and Path(i.filename).suffix.lower() in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif')]
             if not images or any(i.file_size <= 0 or i.flag_bits & 1 for i in images):
                 raise WolfError('이미지가 없거나 비어 있거나 암호화된 ZIP입니다.')
-            return len(images)
+            return tuple(sorted((i.file_size, i.CRC) for i in images))
+
+    def archive_page_count(self, path):
+        return len(self.archive_inventory(path))
+
+    def reconcile_archives(self, ep, folder, paths):
+        """Normalize every ZIP from its own page count; hash only likely duplicates."""
+        records = []
+        for path in paths:
+            self.client.check()
+            try:
+                inventory = self.archive_inventory(path)
+                records.append((path, inventory))
+            except (zipfile.BadZipFile, WolfError, OSError):
+                self.warn(path.name + ': ZIP 파일 목록 확인 실패로 보존')
+        records.sort(key=lambda item: (not bool(re.search(r'#\s*\d+$', item[0].stem)), item[0].name))
+        counts = Counter(inventory for _, inventory in records)
+        seen = {}
+        survivors = []
+        for path, inventory in records:
+            self.client.check()
+            if counts[inventory] > 1:
+                try:
+                    signature = self.archive_signature(path)
+                except (zipfile.BadZipFile, WolfError, OSError, RuntimeError, NotImplementedError) as exc:
+                    if isinstance(exc, (Cancelled, Blocked)):
+                        raise
+                    self.warn(path.name + ': 내용 비교 실패, 중복 이동 없이 이름만 정리')
+                else:
+                    key = (inventory, signature)
+                    if key in seen:
+                        backup = inside(folder, '.duplicates')
+                        backup.mkdir(exist_ok=True)
+                        destination = inside(backup, path.name)
+                        index = 1
+                        while destination.exists():
+                            destination = inside(backup, path.stem + '.backup-' + str(index) + path.suffix)
+                            index += 1
+                        self.client.check()
+                        path.rename(destination)
+                        continue
+                    seen[key] = path
+            survivors.append((path, len(inventory)))
+        normalized = []
+        for path, pages in survivors:
+            self.client.check()
+            label = re.sub(r'^\d+(?:\.\d+)?_', '', path.stem)
+            episode = dict(ep, title=label)
+            target = inside(folder, self.archive_name(episode, pages))
+            if target != path and target.exists():
+                # Different contents can normalize to the same name. Keep both,
+                # retaining the leading episode number and trailing page count.
+                base = self.episode_name(episode)
+                index = 2
+                while target.exists() and target != path:
+                    target = inside(folder, '{} [보존-{}] #{}.zip'.format(base, index, pages))
+                    index += 1
+                self.warn(path.name + ': 이름 충돌로 별도 보존: ' + target.name)
+            if target != path:
+                path.rename(target)
+            normalized.append((target, pages))
+        return normalized
 
     def file_stamp(self, path):
         stat = path.stat()
@@ -419,63 +480,37 @@ class Engine:
                         self.warn(found.name + ': 파일 목록 확인 실패로 보존')
                     continue
                 entries.pop(ep['id'], None)
+                archives = [path for path in candidates if path.is_file()]
+                normalized = self.reconcile_archives(ep, folder, archives)
+                if normalized:
+                    found, pages = normalized[0]
+                    pending.append((work['id'], ep['id'], work['title'], ep['title'], str(found), pages))
+                    self.state['completed'] += 1
+                    if len(pending) >= 100:
+                        self.history.save_many(pending)
+                        pending.clear()
+                    self.status(message='기존 ZIP 페이지 수 및 이름 정리 중', work_title=work['title'])
+                    if len(normalized) == 1 and all(path.is_file() for path in candidates if path.exists()):
+                        entries[ep['id']] = {'stamp': self.file_stamp(found), 'pages': pages}
+                    continue
+                # Legacy image directories still need a viewer count to avoid
+                # marking an interrupted, partially downloaded folder complete.
+                directories = [path for path in candidates if path.is_dir()]
+                if not directories:
+                    continue
                 html, url = self.client.html(self.client.base + '/view?' + urlencode({'toon': work['id'], 'num': ep['id']}))
                 expected = len(parse_images(html, url, self.config['viewer_selector']))
-                valid = []
-                for path in candidates:
+                for path in directories:
                     if not self.check_artifact(path, expected):
-                        self.warn(path.name + ': 이미지 수가 맞지 않아 보존')
+                        self.warn(path.name + ': 회차 폴더 이미지 수가 사이트와 달라 이력 반영 제외')
                         continue
-                    try:
-                        signature = self.archive_signature(path) if path.is_file() else None
-                        valid.append((path, signature))
-                    except (zipfile.BadZipFile, WolfError, OSError) as exc:
-                        if isinstance(exc, (Cancelled, Blocked)):
-                            raise
-                        self.warn(path.name + ': 검증 실패로 보존')
-                if not valid:
-                    continue
-                # Prefer an already page-tagged, validated archive.
-                valid.sort(key=lambda pair: (not pair[0].is_file(), not bool(re.search(r'#\s*\d+$', pair[0].stem)), pair[0].name))
-                found, signature = valid[0]
-                if found.is_file():
-                    label = re.sub(r'^\d+(?:\.\d+)?_', '', found.stem)
-                    normalized_ep = dict(ep, title=label)
-                    target = inside(folder, self.archive_name(normalized_ep, len(signature)))
-                    if target != found and target.exists():
-                        # Existing canonical archive wins only if its content is identical.
-                        existing = next((sig for path, sig in valid if path == target), None)
-                        if existing != signature:
-                            self.warn(target.name + ': 대상 파일 충돌로 이름 변경 안 함')
-                            continue
-                        found = target
-                    elif target != found:
-                        old = found
-                        found.rename(target)
-                        found = target
-                        valid = [(target if path == old else path, sig) for path, sig in valid]
-                    for duplicate, sig in valid:
-                        if duplicate == found or not duplicate.is_file():
-                            continue
-                        if sig != signature:
-                            self.warn(duplicate.name + ': 같은 번호지만 내용이 달라 보존')
-                            continue
-                        # Reversible deduplication: retain originals outside normal episode scan.
-                        backup = inside(folder, '.duplicates')
-                        backup.mkdir(exist_ok=True)
-                        destination = inside(backup, duplicate.name)
-                        index = 1
-                        while destination.exists():
-                            destination = inside(backup, duplicate.stem + '.backup-' + str(index) + duplicate.suffix)
-                            index += 1
-                        self.client.check()
-                        duplicate.rename(destination)
-                self.history.save(work['id'], ep['id'], work_title=work['title'], title=ep['title'], status='completed', path=str(found), pages=expected, error='')
-                self.state['completed'] += 1
-                self.status(message='기존 파일 이름 정리 및 이력 반영 중')
-                remaining = {p for p in candidates + [found] if p.exists()}
-                if remaining == {found} and found.is_file():
-                    entries[ep['id']] = {'time': time.time(), 'stamp': self.file_stamp(found), 'pages': expected}
+                    pending.append((work['id'], ep['id'], work['title'], ep['title'], str(path), expected))
+                    self.state['completed'] += 1
+                    if len(pending) >= 100:
+                        self.history.save_many(pending)
+                        pending.clear()
+                    self.status(message='기존 회차 폴더 이력 반영 중')
+                    break
         finally:
             if pending:
                 self.history.save_many(pending)
