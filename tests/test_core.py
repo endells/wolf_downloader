@@ -71,6 +71,64 @@ class CoreTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def make_archive(self, name, images=None):
+        folder = self.engine.work_dir(WORK)
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / name
+        with zipfile.ZipFile(path, 'w') as archive:
+            for index, data in enumerate(images or [PNG, PNG + b'2'], 1):
+                archive.writestr(str(index) + '.png', data)
+        return path
+
+    def test_clean_archive_name(self):
+        ep = {'id': '187', 'no': 187, 'title': '187 화산귀환 181화 2026-09-09 [187]'}
+        self.assertEqual(self.engine.archive_name(ep, 147), '0187_화산귀환 181화 #147.zip')
+        ep['title'] = '화산귀환 181화#77'
+        self.assertEqual(self.engine.archive_name(ep, 147), '0187_화산귀환 181화 #147.zip')
+
+    def test_new_zip_has_actual_page_count(self):
+        self.conf['use_compress'] = True
+        self.engine.run()
+        self.assertEqual(Path(self.engine.history.get('42', '3')['path']).name, '0003_3화 #2.zip')
+
+    def test_reconcile_adds_count_and_cleans_old_name(self):
+        old = self.make_archive('0003_3 시험 작품 177화 2026-09-09 [3].zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        target = old.with_name('0003_시험 작품 177화 #2.zip')
+        self.assertTrue(target.exists())
+        self.assertFalse(old.exists())
+        self.assertEqual(self.engine.history.get('42', '3')['path'], str(target))
+
+    def test_reconcile_prefers_tagged_and_preserves_other_prefix(self):
+        plain = self.make_archive('0003_시험 작품 177화.zip')
+        tagged = self.make_archive('0003_시험 작품 177화#2.zip')
+        other = self.make_archive('0002_시험 작품 176화.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        target = tagged.with_name('0003_시험 작품 177화 #2.zip')
+        self.assertTrue(target.exists())
+        self.assertFalse(plain.exists())
+        self.assertTrue((target.parent / '.duplicates' / plain.name).exists())
+        self.assertTrue(other.with_name('0002_시험 작품 176화 #2.zip').exists())
+        self.engine.run()
+        self.assertEqual(len(list((target.parent / '.duplicates').iterdir())), 1)
+
+    def test_same_prefix_different_images_not_removed(self):
+        plain = self.make_archive('0003_시험 작품 177화.zip', [PNG + b'other', PNG])
+        tagged = self.make_archive('0003_시험 작품 177화#2.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        self.assertTrue(plain.exists())
+        self.assertTrue(tagged.with_name('0003_시험 작품 177화 #2.zip').exists())
+        self.assertFalse((plain.parent / '.duplicates').exists())
+
+    def test_wrong_hash_count_corrected_from_images(self):
+        old = self.make_archive('0003_시험 작품 177화#77.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        self.assertTrue(old.with_name('0003_시험 작품 177화 #2.zip').exists())
+
     def test_direct_path_and_automatic_limit(self):
         self.engine.run()
         self.assertFalse((self.root / 'downloads' / 'manhwa').exists())
@@ -348,6 +406,11 @@ class CoreTests(unittest.TestCase):
 
 
 class ParserTests(unittest.TestCase):
+    def test_leading_list_number_overrides_story_episode_number(self):
+        html = '<h1>화산귀환</h1><a href="/view?toon=42&num=187">187 화산귀환 181화 2026-09-09</a>'
+        work, _ = parse_work(html, 'https://example.com/list?toon=42', '42')
+        self.assertEqual(work['episodes'][0]['no'], 187)
+
     def test_generic_metadata_uses_real_heading(self):
         html = '<meta property="og:title" content="늑대닷컴 웹툰"><h1>늑대닷컴</h1><h1>진짜 작품명</h1>'
         work, _ = parse_work(html, 'https://example.com/list?toon=5973', '5973')
