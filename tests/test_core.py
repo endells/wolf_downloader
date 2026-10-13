@@ -154,6 +154,74 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(first, sorted((p.name, p.read_bytes()) for p in old.parent.glob('*.zip')))
         self.assertEqual(len(first), 2)
 
+    def test_duplicate_retention_expiry_removes_only_backup_folder(self):
+        plain = self.make_archive('0003_시험 작품 3화.zip')
+        self.make_archive('0003_시험 작품 3화#2.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        backup = plain.parent / '.duplicates'
+        ledger = read_json(self.root / 'duplicate-retention.json')
+        since = next(iter(ledger.values()))['since']
+        lifetime = self.conf['basic_interval'] * 60 * 30
+        with patch('engine.time.time', return_value=since + lifetime - 1):
+            self.engine.cleanup_duplicates()
+        self.assertTrue(backup.exists())
+        with patch('engine.time.time', return_value=since + lifetime + 1):
+            self.engine.cleanup_duplicates()
+        self.assertFalse(backup.exists())
+        self.assertTrue(plain.parent.is_dir())
+        self.assertTrue(plain.with_name('0003_시험 작품 3화 #2.zip').exists())
+
+    def test_legacy_retention_starts_now_and_never_deletes_last_copy(self):
+        path = self.make_archive('0003_시험 작품 3화.zip')
+        backup = path.parent / '.duplicates'
+        backup.mkdir()
+        path.rename(backup / path.name)
+        old = backup / path.name
+        os.utime(old, (1, 1))
+        self.engine.cleanup_duplicates()
+        self.assertTrue(old.exists())
+        with patch('engine.time.time', return_value=time.time() + self.conf['basic_interval'] * 60 * 31):
+            self.engine.cleanup_duplicates()
+        self.assertTrue(old.exists())
+
+    def test_duplicate_cleanup_scope_unknown_files_and_links(self):
+        folder = self.engine.work_dir(WORK)
+        folder.mkdir(parents=True)
+        backup = folder / '.duplicates'
+        backup.mkdir()
+        (backup / 'other.txt').write_text('keep')
+        outside = self.root / 'other'
+        outside.mkdir()
+        (outside / 'file.zip').write_text('keep')
+        (backup / '0003_link.zip').symlink_to(outside / 'file.zip')
+        unregistered = folder.parent / 'Other [99]' / '.duplicates'
+        unregistered.mkdir(parents=True)
+        self.engine.cleanup_duplicates()
+        self.assertTrue(backup.exists())
+        self.assertTrue((backup / 'other.txt').exists())
+        self.assertTrue((outside / 'file.zip').exists())
+        self.assertTrue(unregistered.exists())
+        (backup / 'other.txt').unlink()
+        (backup / '0003_link.zip').unlink()
+        self.engine.cleanup_duplicates()
+        self.assertFalse(backup.exists())
+        self.assertTrue(folder.exists())
+
+    def test_changed_backup_restarts_retention(self):
+        plain = self.make_archive('0003_시험 작품 3화.zip')
+        self.make_archive('0003_시험 작품 3화#2.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        path = plain.parent / '.duplicates' / plain.name
+        with zipfile.ZipFile(path, 'a') as archive:
+            archive.writestr('note.txt', 'modified')
+        future = time.time() + self.conf['basic_interval'] * 60 * 31
+        with patch('engine.time.time', return_value=future):
+            self.engine.cleanup_duplicates()
+        self.assertTrue(path.exists())
+        self.assertEqual(read_json(self.root / 'duplicate-retention.json')[str(path)]['since'], future)
+
     def test_wrong_hash_count_corrected_from_images(self):
         old = self.make_archive('0003_시험 작품 177화#77.zip')
         self.job['mode'] = 'reconcile'
