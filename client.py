@@ -76,12 +76,26 @@ def link_id(url, key):
     return v if v.isdigit() else ''
 
 
+def clean_work_title(value):
+    value = ' '.join(str(value or '').split())
+    value = re.split(r'\s*[-|–]\s*늑대', value)[0].strip()
+    # Site-wide metadata must never become a series directory name.
+    if not value or '늑대닷컴' in value or re.fullmatch(r'(늑대\s*(웹툰|툰)?|웹툰|무료\s*웹툰|연재|완결|작품\s*\d+)', value):
+        return ''
+    return value
+
+
 def parse_work(html, url, work_id):
     doc = Document(html)
     meta = {n.attrs.get('property', n.attrs.get('name')): n.attrs.get('content', '') for n in doc.walk('meta')}
-    heading = next((n.text() for n in doc.walk('h1') if n.text()), '')
-    title = meta.get('og:title') or heading or next((n.text() for n in doc.walk('title')), '')
-    title = re.split(r'\s*[-|–]\s*늑대', title)[0].strip()
+    explicit = [n.text() for n in doc.walk() if
+                n.attrs.get('itemprop') == 'name' or
+                any(n.matches(s) for s in ('.toon-title', '.webtoon-title', '.comic-title', '.series-title', '#toon-title'))]
+    candidates = explicit + [meta.get('og:title'), meta.get('twitter:title')]
+    candidates += [n.text() for n in doc.walk('h1')]
+    candidates += [n.text() for n in doc.walk('title')]
+    title = next((clean_work_title(t) for t in candidates if
+                  clean_work_title(t) and t != meta.get('og:site_name')), '')
     episodes, pages = {}, set()
     for a in doc.walk('a'):
         href = urljoin(url, a.attrs.get('href', ''))
@@ -94,7 +108,13 @@ def parse_work(html, url, work_id):
             episodes.setdefault(num, {'id': num, 'title': label, 'no': float(no.group(1)) if no else int(num)})
         elif urlsplit(href).path.rstrip('/').endswith('/list') and any(k in parse_qs(urlsplit(href).query) for k in ('page', 'pg')):
             pages.add(href)
-    return {'id': str(work_id), 'title': title or ('작품 ' + str(work_id)),
+    if not title:
+        # Accept a repeated series prefix only from this work's episode links.
+        prefixes = [clean_work_title(re.split(r'\s*\d+(?:\.\d+)?\s*[화회]', e['title'], maxsplit=1)[0])
+                    for e in episodes.values() if re.search(r'\d+(?:\.\d+)?\s*[화회]', e['title'])]
+        if len(prefixes) >= 2 and prefixes[0] and len(set(prefixes)) == 1:
+            title = prefixes[0]
+    return {'id': str(work_id), 'title': title,
             'cover': urljoin(url, meta.get('og:image', '')) if meta.get('og:image') else '',
             'description': meta.get('og:description', meta.get('description', '')),
             'episodes': list(episodes.values())}, sorted(pages)
@@ -285,12 +305,16 @@ class Client:
             parsed, pages = parse_work(html, actual, wid)
             if work is None:
                 work = parsed
+            elif not work['title'] and parsed['title']:
+                work['title'] = parsed['title']
             episodes.update({e['id']: e for e in parsed['episodes']})
             for p in pages:
                 if p not in visited and p not in pending:
                     pending.append(p)
         if not episodes:
             raise WolfError('회차 목록이 없습니다. 작품 번호/사이트 구조/도메인을 확인하세요.')
+        if not work['title']:
+            raise WolfError('작품명을 확인하지 못했습니다. 사이트명으로 폴더를 만들지 않았습니다. 작품 상세 페이지 HTML 확인이 필요합니다.')
         work['episodes'] = sorted(episodes.values(), key=lambda x: (x['no'], int(x['id'])))
         return work
 
