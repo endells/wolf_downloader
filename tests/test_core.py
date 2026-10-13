@@ -389,6 +389,47 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(work['episodes'][0]['no'], 257)
         self.assertIn('256화', work['episodes'][0]['title'])
 
+    def test_repair_preserves_existing_target_and_promotes_new_zip(self):
+        broken = self.make_archive('0003_3화.zip')
+        broken.write_bytes(b'')
+        target = self.make_archive('0003_3화 #2.zip', [PNG + b'old', PNG])
+        original = target.read_bytes()
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        self.assertEqual(self.engine.state['repaired'], 1)
+        self.assertFalse(broken.exists())
+        self.assertTrue(target.exists())
+        self.assertEqual((target.parent / '.duplicates' / target.name).read_bytes(), original)
+        self.assertEqual(self.engine.history.get('42', '3')['path'], str(target))
+
+    def test_repair_promotion_failure_restores_existing_target(self):
+        broken = self.make_archive('0003_3화.zip')
+        broken.write_bytes(b'')
+        target = self.make_archive('0003_3화 #2.zip')
+        original = target.read_bytes()
+        replace = os.replace
+        def fail_promotion(src, dst):
+            if Path(dst) == target:
+                raise OSError(5, 'test error')
+            return replace(src, dst)
+        self.job['mode'] = 'reconcile'
+        with patch('engine.os.replace', side_effect=fail_promotion):
+            self.engine.run()
+        self.assertEqual(target.read_bytes(), original)
+        self.assertTrue(broken.exists())
+
+    def test_repair_error_notification_has_detailed_reason(self):
+        broken = self.make_archive('0003_3화.zip')
+        broken.write_bytes(b'')
+        self.job['mode'] = 'reconcile'
+        with patch.object(self.engine, 'download_episode', side_effect=WolfError('본문 이미지 없음')), patch.object(self.engine, 'notify') as notify:
+            self.engine.run()
+        alerts = [call.args[1] for call in notify.call_args_list if call.args[0] == 'alert']
+        self.assertEqual(len(alerts), 1)
+        self.assertIn('본문 이미지 없음', alerts[0])
+        self.assertIn('작품: 시험 작품', alerts[0])
+        self.assertIn('회차: 3화', alerts[0])
+
     def test_wrong_hash_count_corrected_from_images(self):
         old = self.make_archive('0003_시험 작품 177화#77.zip')
         self.job['mode'] = 'reconcile'
