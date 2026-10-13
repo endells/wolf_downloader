@@ -2,9 +2,10 @@
 {% block content %}
 <style>
 .wd{max-width:1160px;margin:12px auto;padding:0 10px;font-size:14px}.wd h3{font-size:22px;margin:0 0 12px}.wd h3 small{font-size:12px;opacity:.6}.wd-panel{border:1px solid #90909055;border-radius:7px;padding:16px;margin:12px 0}.wd-status{padding:9px 12px;border:1px solid #83979766;border-radius:7px;font-size:12px}.wd-line{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.wd-grow{flex:1;min-width:120px}.wd-meta{display:flex;gap:16px;flex-wrap:wrap;margin-top:4px;opacity:.8}.wd-bar{height:4px;background:#9ca3af44;margin-top:7px;border-radius:4px;overflow:hidden}.wd-bar>div{background:#388a71;width:0;height:100%;transition:width .2s}.wd label{display:block;margin:10px 0 4px}.wd input[type=text],.wd input[type=number],.wd input[type=password],.wd textarea,.wd select{border:1px solid #9996;background:transparent;color:inherit;border-radius:4px;padding:7px;max-width:100%}.wd input[type=text],.wd textarea{width:100%}.wd small{display:block;opacity:.72;margin:5px 0;line-height:1.5}.wd-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 22px}.wd-actions{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.wd-check{display:flex!important;gap:7px;align-items:center}.wd-scroll{overflow:auto}.wd table{width:100%;border-collapse:collapse;font-size:13px}.wd td,.wd th{padding:8px;border-bottom:1px solid #9994;text-align:left;overflow-wrap:anywhere}.wd-note{padding:9px 12px;border-left:3px solid #388a71;background:#388a710c;margin:10px 0}.wd-warning{color:#b66a20;white-space:pre-wrap;overflow-wrap:anywhere}.wd #wd-message:empty,.wd #warnings:empty{display:none}.wd #wd-message{padding:8px 0}.wd details{margin-top:14px}.wd summary{cursor:pointer}.wd-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}.wd-card{border:1px solid #9995;border-radius:5px;padding:12px}.wd .btn{font-size:13px}.wd nav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.wd nav a{padding:6px 12px;border:1px solid #9995;border-radius:5px}.wd nav a.active{background:#287360;color:#fff}.wd-path{display:flex;gap:6px}.wd input[type=password]{width:100%}@media(max-width:640px){.wd-grid,.wd-cards{grid-template-columns:1fr}.wd-panel{padding:12px}.wd-meta{gap:4px 12px}.wd h3{font-size:19px}}
+.wd [role="tabpanel"][hidden]{display:none!important}.wd-settings-tabs button{padding:6px 12px;border:1px solid #9995;border-radius:5px;background:transparent;color:inherit;cursor:pointer}.wd-settings-tabs button.active{background:#287360;color:#fff}.wd-settings-tabs button:focus-visible{outline:2px solid #388a71;outline-offset:2px}
 </style>
 <div class="wd">
-<h3>늑대 다운로더 <small>0.1.4 · 독립 작업 프로세스</small></h3>
+<h3>늑대 다운로더 <small>0.1.5 · 독립 작업 프로세스</small></h3>
 <div class="wd-status" aria-live="polite">
  <div class="wd-line"><strong>작업 상태</strong><span id="state" class="wd-grow">확인 중…</span><button id="stop" class="btn btn-sm btn-outline-danger">중지</button></div>
  <div class="wd-meta"><span id="counts">회차 0 / 0</span><span id="pages">이미지 0 / 0</span><span id="schedule"></span><span id="domain"></span></div>
@@ -13,19 +14,16 @@
 <div id="wd-message" role="alert"></div>
 
 {% if page == 'setting' %}
+<nav class="wd-settings-tabs" role="tablist" aria-label="설정 메뉴">
+<button type="button" id="tab-basic" role="tab" aria-controls="panel-basic" aria-selected="true" data-settings-tab="basic" class="active">설정</button>
+<button type="button" id="tab-advanced" role="tab" aria-controls="panel-advanced" aria-selected="false" tabindex="-1" data-settings-tab="advanced">인증 · 알림 · 고급 설정</button>
+<button type="button" id="tab-files" role="tab" aria-controls="panel-files" aria-selected="false" tabindex="-1" data-settings-tab="files">기존 파일 관리</button>
+</nav>
 <div class="wd-panel">
-<details><summary>인증 · 알림 · 고급 설정</summary>
-<label for="announcer_url">도메인 공지 채널</label><input id="announcer_url" type="text" value="{{ config.announcer_url }}"><small>기존 채널의 새 채널 안내 링크도 최대 3곳까지 따라갑니다.</small>
-<label for="cookie">브라우저 Cookie 헤더 값</label><input id="cookie" type="password" autocomplete="new-password" placeholder="{% if secrets_saved.cookie %}저장된 쿠키 있음 · 비우면 유지{% else %}선택 입력{% endif %}"><label class="wd-check"><input id="clear_cookie" type="checkbox"> 저장된 쿠키 삭제</label><small>JSON이 아닌 Cookie 헤더 문자열. 입력한 도메인에만 전송합니다. 도메인이 바뀌면 새 도메인에서 받은 쿠키를 다시 저장하세요.</small>
-{% for key,label in [('notify_webhook_download','다운로드 완료 알림'),('notify_webhook_alert','도메인 · 오류 알림')] %}
-<label for="{{ key }}">{{ label }} 웹훅 (Discord / Slack)</label><input id="{{ key }}" type="password" autocomplete="new-password" placeholder="{% if secrets_saved[key] %}저장됨 · 비우면 유지{% else %}선택 입력{% endif %}"><label class="wd-check"><input id="clear_{{ key }}" type="checkbox"> 저장된 URL 삭제</label>
-{% endfor %}
-<div class="wd-actions"><button class="btn btn-outline-secondary notify job" data-kind="download">완료 알림 테스트</button><button class="btn btn-outline-secondary notify job" data-kind="alert">오류 알림 테스트</button></div>
-<label for="viewer_selector">본문 이미지 영역 선택자</label><input id="viewer_selector" type="text" value="{{ config.viewer_selector }}"><small>#id, .class, 태그를 쉼표로 구분. 영역을 찾지 못하면 광고 영역을 제외한 img[data-src]를 사용합니다.</small>
-<label for="search_path">검색 경로 (자동 감지 실패 시)</label><input id="search_path" type="text" value="{{ config.search_path }}" placeholder="실제 사이트 검색 URL에서 검색어를 {query}로 치환"><small>사이트 검색 폼을 먼저 자동 감지합니다. 설정 시 실제 검색 URL 경로를 사용하세요.</small>
-</details>
-<details><summary>기존 파일 관리</summary><small>등록된 자동 수집 작품만 처리합니다. 원본 플러그인의 DB는 변경하지 않습니다.</small><div class="wd-actions"><button class="btn btn-outline-secondary job" data-command="metadata">표지 · info.xml 보완</button><button class="btn btn-outline-secondary job" data-command="reconcile">기존 파일 이력 반영</button><button id="compress" class="btn btn-outline-secondary job">완료 폴더 ZIP 변환</button></div><small>이력 반영은 저장된 자동 수집 목록의 작품만 처리합니다. 해당 작품명 폴더에 [작품번호]를 붙인 뒤 이력을 확인합니다. 목록 밖의 작품과 번호 없는 다른 폴더는 무시합니다. ZIP 이름을 앞번호_제목 #이미지수.zip 형식으로 정리하고, 같은 앞번호·동일 이미지의 중복 ZIP은 .duplicates로 보관합니다. 같은 이름의 대상 폴더가 있으면 합치지 않고 중지합니다. ZIP 변환은 이 플러그인이 만든 완료 폴더만 대상으로 하며, ZIP 검증 후 해당 원본 회차 폴더를 삭제합니다.</small></details>
+
+
 <div class="wd-actions"><button id="save_top" class="btn btn-primary">설정 저장</button><button class="btn btn-success job" data-command="run">저장된 목록 지금 받기</button><button class="btn btn-outline-primary job" data-command="resolve">도메인 자동 갱신</button><button class="btn btn-outline-secondary job" data-command="probe">도메인 확인</button></div>
+<section id="panel-basic" role="tabpanel" aria-labelledby="tab-basic">
 <div class="wd-note">설정 저장은 다운로드를 시작하지 않습니다. 경로는 FF 컨테이너 내부 경로이며, 바로 아래에 작품 폴더를 만듭니다.</div>
 <label for="download_path">다운로드 경로</label><div class="wd-path"><input id="download_path" type="text" value="{{ config.download_path }}"><button id="path" class="btn btn-outline-secondary">경로 선택</button></div><small>예: /library/comics/작품명 [작품번호]/0001_회차명 [회차ID]/001.jpg · manhwa 폴더를 자동으로 붙이지 않습니다.</small>
 <label for="titles">자동 수집 작품 목록</label><textarea id="titles" rows="4">{{ config.titles }}</textarea><small>한 줄에 작품 URL 또는 번호 하나. 작품 분석 화면의 ‘자동 수집 추가’로도 등록할 수 있습니다.</small>
@@ -39,6 +37,20 @@
  <div><label for="basic_interval">자동 수집 간격 (분)</label><input id="basic_interval" type="number" min="10" max="10080" value="{{ config.basic_interval }}"></div>
  <div><label class="wd-check"><input id="basic_auto_start" type="checkbox" {% if config.basic_auto_start %}checked{% endif %}> 자동 수집 사용</label><label class="wd-check"><input id="use_compress" type="checkbox" {% if config.use_compress %}checked{% endif %}> 완료 회차를 ZIP으로 저장 (재압축 없이 묶기)</label><label class="wd-check"><input id="auto_resolve_base_url" type="checkbox" {% if config.auto_resolve_base_url %}checked{% endif %}> 접속 실패 시 도메인 자동 갱신</label></div>
 </div>
+</section>
+<section id="panel-advanced" role="tabpanel" aria-labelledby="tab-advanced" hidden>
+
+<label for="announcer_url">도메인 공지 채널</label><input id="announcer_url" type="text" value="{{ config.announcer_url }}"><small>기존 채널의 새 채널 안내 링크도 최대 3곳까지 따라갑니다.</small>
+<label for="cookie">브라우저 Cookie 헤더 값</label><input id="cookie" type="password" autocomplete="new-password" placeholder="{% if secrets_saved.cookie %}저장된 쿠키 있음 · 비우면 유지{% else %}선택 입력{% endif %}"><label class="wd-check"><input id="clear_cookie" type="checkbox"> 저장된 쿠키 삭제</label><small>JSON이 아닌 Cookie 헤더 문자열. 입력한 도메인에만 전송합니다. 도메인이 바뀌면 새 도메인에서 받은 쿠키를 다시 저장하세요.</small>
+{% for key,label in [('notify_webhook_download','다운로드 완료 알림'),('notify_webhook_alert','도메인 · 오류 알림')] %}
+<label for="{{ key }}">{{ label }} 웹훅 (Discord / Slack)</label><input id="{{ key }}" type="password" autocomplete="new-password" placeholder="{% if secrets_saved[key] %}저장됨 · 비우면 유지{% else %}선택 입력{% endif %}"><label class="wd-check"><input id="clear_{{ key }}" type="checkbox"> 저장된 URL 삭제</label>
+{% endfor %}
+<div class="wd-actions"><button class="btn btn-outline-secondary notify job" data-kind="download">완료 알림 테스트</button><button class="btn btn-outline-secondary notify job" data-kind="alert">오류 알림 테스트</button></div>
+<label for="viewer_selector">본문 이미지 영역 선택자</label><input id="viewer_selector" type="text" value="{{ config.viewer_selector }}"><small>#id, .class, 태그를 쉼표로 구분. 영역을 찾지 못하면 광고 영역을 제외한 img[data-src]를 사용합니다.</small>
+<label for="search_path">검색 경로 (자동 감지 실패 시)</label><input id="search_path" type="text" value="{{ config.search_path }}" placeholder="실제 사이트 검색 URL에서 검색어를 {query}로 치환"><small>사이트 검색 폼을 먼저 자동 감지합니다. 설정 시 실제 검색 URL 경로를 사용하세요.</small>
+</section>
+<section id="panel-files" role="tabpanel" aria-labelledby="tab-files" hidden>
+<small>등록된 자동 수집 작품만 처리합니다. 원본 플러그인의 DB는 변경하지 않습니다.</small><div class="wd-actions"><button class="btn btn-outline-secondary job" data-command="metadata">표지 · info.xml 보완</button><button class="btn btn-outline-secondary job" data-command="reconcile">기존 파일 이력 반영</button><button id="compress" class="btn btn-outline-secondary job">완료 폴더 ZIP 변환</button></div><small>이력 반영은 저장된 자동 수집 목록의 작품만 처리합니다. 해당 작품명 폴더에 [작품번호]를 붙인 뒤 이력을 확인합니다. 목록 밖의 작품과 번호 없는 다른 폴더는 무시합니다. ZIP 이름을 앞번호_제목 #이미지수.zip 형식으로 정리하고, 같은 앞번호·동일 이미지의 중복 ZIP은 .duplicates로 보관합니다. 같은 이름의 대상 폴더가 있으면 합치지 않고 중지합니다. ZIP 변환은 이 플러그인이 만든 완료 폴더만 대상으로 하며, ZIP 검증 후 해당 원본 회차 폴더를 삭제합니다.</small></section>
 <div class="wd-actions"><button id="save" class="btn btn-primary">설정 저장</button><button class="btn btn-success job" data-command="run">저장된 목록 지금 받기</button><button class="btn btn-outline-primary job" data-command="resolve">도메인 자동 갱신</button><button class="btn btn-outline-secondary job" data-command="probe">도메인 확인</button></div>
 <small>실행 버튼은 저장된 설정으로 동작합니다. 변경했으면 먼저 ‘설정 저장’을 누르세요.</small>
 
@@ -94,6 +106,19 @@ function renderEpisodes(){
  text('ep_page',epPage+' / '+Math.max(1,Math.ceil(work.episodes.length/100)));selectionCount();
 }
 function selectionCount(){text('selection','선택 '+selected.size+' / '+work.episodes.length);$id('select_all').checked=selected.size===work.episodes.length;updateButtons();}
+function selectSettingsTab(name){
+ const tabs=Array.from(document.querySelectorAll('[data-settings-tab]'));
+ if(!tabs.some(t=>t.dataset.settingsTab===name))name='basic';
+ tabs.forEach(t=>{const chosen=t.dataset.settingsTab===name;t.classList.toggle('active',chosen);t.setAttribute('aria-selected',String(chosen));t.tabIndex=chosen?0:-1;$id('panel-'+t.dataset.settingsTab).hidden=!chosen;});
+}
+if(page==='setting'){
+ const tabs=Array.from(document.querySelectorAll('[data-settings-tab]'));
+ tabs.forEach((t,index)=>{
+  t.addEventListener('click',()=>selectSettingsTab(t.dataset.settingsTab));
+  t.addEventListener('keydown',e=>{let next;if(e.key==='ArrowRight')next=(index+1)%tabs.length;else if(e.key==='ArrowLeft')next=(index+tabs.length-1)%tabs.length;else if(e.key==='Home')next=0;else if(e.key==='End')next=tabs.length-1;else return;e.preventDefault();tabs[next].click();tabs[next].focus();});
+ });
+ selectSettingsTab('basic');
+}
 bind('stop',async()=>{message((await call('stop')).msg);});
 async function saveSettings(){const c={};{% for key in config %}if($id({{ key|tojson }}))c[{{ key|tojson }}]=$id({{ key|tojson }}).type==='checkbox'?$id({{ key|tojson }}).checked:$id({{ key|tojson }}).value;{% endfor %}
  ['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{c[k]=$id(k).value;c['clear_'+k]=$id('clear_'+k).checked;});const r=await call('save',c);message(r.msg);['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{$id(k).value='';$id('clear_'+k).checked=false;});}
