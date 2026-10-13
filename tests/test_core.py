@@ -158,19 +158,63 @@ class CoreTests(unittest.TestCase):
             archive.writestr('note.txt', 'changed')
         with patch.object(self.client, 'html', wraps=self.client.html) as html:
             self.engine.run()
-        self.assertEqual(html.call_count, 1)
+        html.assert_not_called()
 
-    def test_expired_cache_rechecks_site(self):
+    def test_unchanged_cache_has_no_daily_expiration(self):
         self.make_archive('0003_시험 작품 3화.zip')
         self.job['mode'] = 'reconcile'
         self.engine.run()
         cache_path = self.root / 'reconcile-cache-42.json'
         cache = read_json(cache_path)
-        cache['episodes']['3']['time'] -= 86401
+        cache['episodes']['3']['time'] = 0
         write_json(cache_path, cache)
         with patch.object(self.client, 'html', wraps=self.client.html) as html:
             self.engine.run()
-        self.assertEqual(html.call_count, 1)
+        html.assert_not_called()
+
+    def test_first_scan_counts_without_decompressing_or_viewer(self):
+        old = self.make_archive('0003_시험 작품 177화#77.zip', [PNG, PNG, PNG])
+        self.job['mode'] = 'reconcile'
+        with patch.object(self.client, 'html', side_effect=AssertionError('viewer request')), patch.object(zipfile.ZipFile, 'open', side_effect=AssertionError('decompression')):
+            self.engine.run()
+        self.assertTrue(old.with_name('0003_시험 작품 177화 #3.zip').exists())
+        self.assertEqual(self.engine.history.get('42', '3')['pages'], 3)
+
+    def test_cancel_flushes_already_renamed_history(self):
+        self.make_archive('0001_시험 작품 1화.zip')
+        self.make_archive('0002_시험 작품 2화.zip')
+        original = self.engine.archive_page_count
+        def cancel_after_count(path):
+            if path.name.startswith('0002_'):
+                raise Cancelled('stop')
+            return original(path)
+        with patch.object(self.engine, 'archive_page_count', side_effect=cancel_after_count):
+            with self.assertRaises(Cancelled):
+                self.engine.reconcile(WORK, self.engine.work_dir(WORK))
+        self.assertTrue(Path(self.engine.history.get('42', '1')['path']).exists())
+        self.assertIsNone(self.engine.history.get('42', '2'))
+
+    def test_fast_cache_skips_directory_read_and_changed_file_recounts(self):
+        self.make_archive('0003_시험 작품 3화.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        with patch.object(self.engine, 'archive_page_count', side_effect=AssertionError('cached')):
+            self.engine.run()
+        target = Path(self.engine.history.get('42', '3')['path'])
+        with zipfile.ZipFile(target, 'a') as archive:
+            archive.writestr('extra.png', PNG)
+        self.engine.run()
+        record = self.engine.history.get('42', '3')
+        self.assertEqual(record['pages'], 3)
+        self.assertTrue(record['path'].endswith(' #3.zip'))
+
+    def test_invalid_zip_is_preserved_without_history(self):
+        old = self.make_archive('0003_시험 작품.zip')
+        old.write_bytes(b'broken')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        self.assertTrue(old.exists())
+        self.assertIsNone(self.engine.history.get('42', '3'))
 
     def test_zip_signature_reads_each_entry_once(self):
         path = self.make_archive('0003_시험 작품 3화.zip')
