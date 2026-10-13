@@ -363,6 +363,32 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(path.with_name('0003_작품 177화 #2.zip').exists())
         self.assertEqual(self.engine.state['repaired'], 1)
 
+    def test_repair_missing_title_uses_both_neighbors(self):
+        self.make_archive('0001_1화.zip')
+        broken = self.make_archive('0002_2화.zip')
+        broken.write_bytes(b'')
+        self.make_archive('0003_3화.zip')
+        work = copy.deepcopy(WORK)
+        work['episodes'][1]['title'] = '회차 정보'
+        self.job['mode'] = 'reconcile'
+        with patch.object(self.client, 'work', return_value=work):
+            self.engine.run()
+        self.assertEqual(self.engine.state['repaired'], 1)
+        self.assertTrue(broken.with_name('0002_2화 #2.zip').exists())
+
+    def test_repair_failure_shows_actual_reason(self):
+        broken = self.make_archive('0003_3화.zip')
+        broken.write_bytes(b'')
+        self.job['mode'] = 'reconcile'
+        with patch.object(self.engine, 'download_episode', side_effect=WolfError('본문 이미지를 찾지 못했습니다.')):
+            self.engine.run()
+        self.assertIn('본문 이미지를 찾지 못했습니다.', self.engine.history.get('42', '3')['error'])
+
+    def test_work_prefers_numbered_text_over_tooltip(self):
+        work, _ = parse_work('<h1>시험 작품</h1><a href="/view?toon=42&num=7" title="보기">257 시험 작품 256화</a>', 'https://wfwf100.com/list?toon=42', '42')
+        self.assertEqual(work['episodes'][0]['no'], 257)
+        self.assertIn('256화', work['episodes'][0]['title'])
+
     def test_wrong_hash_count_corrected_from_images(self):
         old = self.make_archive('0003_시험 작품 177화#77.zip')
         self.job['mode'] = 'reconcile'
