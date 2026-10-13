@@ -453,7 +453,7 @@ class Engine:
         if not broken:
             return candidates
         def chapter(text):
-            match = re.search(r'(\d+(?:\.\d+)?)\s*화', text)
+            match = re.search(r'(\d+(?:\.\d+)?)\s*[화회]', text)
             return float(match.group(1)) if match else None
         expected = chapter(ep['title'])
         for path, _ in broken:
@@ -462,8 +462,24 @@ class Engine:
                 self.warn(path.name + ': 앞번호와 제목 화수가 사이트 회차와 일치하지 않아 자동 복구 제외')
                 return []
             if actual is not None and expected is None:
-                self.warn(path.name + ': 사이트 제목 화수를 확인할 수 없어 자동 복구 제외')
-                return []
+                # Require both adjacent site entries and local files to agree.
+                evidence = []
+                for delta in (-1, 1):
+                    adjacent = [e for e in work['episodes'] if float(e['no']) == float(ep['no']) + delta]
+                    if len(adjacent) != 1 or chapter(adjacent[0]['title']) != actual + delta:
+                        break
+                    matching = []
+                    for neighbor in folder.iterdir():
+                        prefix = re.match(r'^(\d+(?:\.\d+)?)_', neighbor.name)
+                        if prefix and float(prefix.group(1)) == float(ep['no']) + delta and neighbor.is_file() and not neighbor.is_symlink():
+                            matching.append(chapter(re.sub(r'^\d+(?:\.\d+)?_', '', neighbor.stem)))
+                    if not matching or any(value != actual + delta for value in matching):
+                        break
+                    evidence.append(delta)
+                if len(evidence) != 2:
+                    self.warn(path.name + ': 사이트 제목 정보 부족, 앞뒤 회차 교차 확인도 불충분하여 복구 보류')
+                    return []
+                ep = dict(ep, title=re.sub(r'^\d+(?:\.\d+)?_', '', path.stem))
         # Cross-check adjacent filenames against their corresponding site entries.
         neighbors = {float(e['no']): e for e in work['episodes'] if abs(float(e['no']) - float(ep['no'])) == 1}
         for neighbor in folder.iterdir():
@@ -509,8 +525,13 @@ class Engine:
             raise
         except (WolfError, OSError) as exc:
             self.state['failed'] += 1
-            self.history.save(work['id'], ep['id'], status='failed', path=str(broken[0][0]), error='기존 ZIP 복구 실패')
-            self.warn(ep['title'] + ': 재다운로드 실패, 기존 파일 유지 (' + type(exc).__name__ + ')')
+            detail = str(exc) if isinstance(exc, WolfError) else '{} (errno={})'.format(type(exc).__name__, getattr(exc, 'errno', '?'))
+            detail = re.sub(r'https?://\S+', '[URL]', detail)[:500]
+            for secret in list(self.config.get('secrets', {}).values()) + [self.config.get('cookie', '')]:
+                if secret:
+                    detail = detail.replace(str(secret), '[REDACTED]')
+            self.history.save(work['id'], ep['id'], status='failed', path=str(broken[0][0]), error='기존 ZIP 복구 실패: ' + detail)
+            self.warn(ep['title'] + ': 재다운로드 실패, 기존 파일 유지 — ' + detail)
             return []
         finally:
             self.config['use_compress'] = compress
