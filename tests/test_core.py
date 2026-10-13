@@ -79,6 +79,36 @@ class CoreTests(unittest.TestCase):
         self.assertIn('/시험 작품 [42]/', row['path'])
         self.assertIsNone(self.engine.history.get('42', '1'))
 
+    def test_reuse_plain_title_folder_without_database(self):
+        folder = self.root / 'downloads' / WORK['title']
+        folder.mkdir(parents=True)
+        self.engine.run()
+        self.assertEqual(Path(self.engine.history.get('42', '3')['path']).parent, folder)
+        self.assertFalse((folder.parent / '시험 작품 [42]').exists())
+
+    def test_reuse_legacy_title_folder(self):
+        folder = self.root / 'downloads' / 'manhwa' / WORK['title']
+        folder.mkdir(parents=True)
+        self.assertEqual(self.engine.work_dir(WORK), folder)
+
+    def test_ambiguous_existing_folders_stop(self):
+        for name in ('시험 작품', '시험 작품 [42]'):
+            (self.root / 'downloads' / name).mkdir(parents=True)
+        with self.assertRaises(WolfError):
+            self.engine.work_dir(WORK)
+
+    def test_other_work_marker_not_reused(self):
+        folder = self.root / 'downloads' / WORK['title']
+        folder.mkdir(parents=True)
+        write_json(folder / '.wolf-work.json', {'id': '999'})
+        with self.assertRaises(WolfError):
+            self.engine.work_dir(WORK)
+
+    def test_site_name_never_creates_directory(self):
+        with self.assertRaises(WolfError):
+            self.engine.work_dir(dict(WORK, title='늑대닷컴 웹툰'))
+        self.assertFalse((self.root / 'downloads').exists())
+
     def test_notification_manual_title_and_selected_numbers(self):
         self.job['args'].update(work_id='42', selected=['1', '3'])
         with patch.object(self.engine, 'notify') as notify:
@@ -117,7 +147,7 @@ class CoreTests(unittest.TestCase):
 
     def test_notification_separates_works(self):
         self.conf['titles'] = '42\n43'
-        self.client.work = lambda wid: copy.deepcopy(dict(WORK, id=wid, title='작품 ' + wid))
+        self.client.work = lambda wid: copy.deepcopy(dict(WORK, id=wid, title='알림 테스트 작품 ' + wid))
         with patch.object(self.engine, 'notify') as notify:
             self.engine.run()
         details = [call.args[1] for call in notify.call_args_list if '웹툰:' in call.args[1]]
@@ -255,6 +285,26 @@ class CoreTests(unittest.TestCase):
 
 
 class ParserTests(unittest.TestCase):
+    def test_generic_metadata_uses_real_heading(self):
+        html = '<meta property="og:title" content="늑대닷컴 웹툰"><h1>늑대닷컴</h1><h1>진짜 작품명</h1>'
+        work, _ = parse_work(html, 'https://example.com/list?toon=5973', '5973')
+        self.assertEqual(work['title'], '진짜 작품명')
+
+    def test_explicit_series_title_overrides_site_metadata(self):
+        html = '<meta property="og:title" content="늑대닷컴 웹툰"><div class="toon-title">실제 제목</div>'
+        self.assertEqual(parse_work(html, 'https://example.com/list?toon=1', '1')[0]['title'], '실제 제목')
+
+    def test_episode_prefix_recovers_title(self):
+        html = '<title>늑대닷컴 웹툰</title><a href="/view?toon=1&num=11">실제 제목 1화</a><a href="/view?toon=1&num=12">실제 제목 2화</a>'
+        self.assertEqual(parse_work(html, 'https://example.com/list?toon=1', '1')[0]['title'], '실제 제목')
+
+    def test_unknown_title_stops_client_work(self):
+        client = Client(dict(DEFAULTS, base_url='https://example.com'))
+        html = '<title>늑대닷컴 웹툰</title><a href="/view?toon=1&num=11">1화</a>'
+        with patch.object(client, 'html', return_value=(html, 'https://example.com/list?toon=1')):
+            with self.assertRaises(WolfError):
+                client.work('1')
+
     def test_episode_list_title_dedup_order_and_pages(self):
         html = '<meta property="og:title" content="테스트 - 늑대닷컴"><a href="/view?toon=42&num=2">2화</a><a href="/view?toon=42&num=1">1화</a><a href="/view?toon=43&num=1">외부 작품</a><a href="/view?toon=42&num=2">중복</a><a href="/list?toon=42&page=2">다음</a>'
         work, pages = parse_work(html, 'https://wfwf100.com/list?toon=42', '42')
