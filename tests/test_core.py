@@ -460,6 +460,55 @@ class CoreTests(unittest.TestCase):
                 validate(dict(self.conf, **{key: value}))
 
 
+class LoggingTests(unittest.TestCase):
+    def test_persistent_ff_path_redaction_and_newline(self):
+        from common import write_log
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / 'wolf_downloader'
+            self.assertTrue(write_log(directory, 'INFO', '작품 완료\ncookie=SECRET https://hooks.slack.com/services/secret', ['SECRET']))
+            path = Path(temp) / 'log' / 'wolf_downloader.log'
+            content = path.read_text()
+            self.assertIn('작품 완료', content)
+            self.assertNotIn('SECRET', content)
+            self.assertNotIn('hooks.slack', content)
+            self.assertEqual(len(content.splitlines()), 1)
+            write_log(directory, 'WARNING', '재시작 후 기록')
+            self.assertEqual(len(path.read_text().splitlines()), 2)
+
+    def test_rotation_keeps_recent_log(self):
+        from common import write_log
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / 'wolf_downloader'
+            logdir = Path(temp) / 'log'
+            logdir.mkdir()
+            path = logdir / 'wolf_downloader.log'
+            path.write_text('a' * (5 * 1024 * 1024))
+            self.assertTrue(write_log(directory, 'INFO', '새 로그'))
+            self.assertTrue(path.with_name(path.name + '.1').exists())
+            self.assertIn('새 로그', path.read_text())
+
+    def test_log_failure_does_not_abort_work(self):
+        from common import write_log
+        with tempfile.TemporaryDirectory() as temp:
+            (Path(temp) / 'log').write_text('blocked')
+            self.assertFalse(write_log(Path(temp) / 'wolf_downloader', 'INFO', 'test'))
+
+    def test_worker_events_are_persistent_and_progress_not_spammed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / 'wolf_downloader'
+            directory.mkdir()
+            conf = validate(dict(DEFAULTS, download_path=str(Path(temp) / 'downloads'), base_url='https://wfwf100.com', titles='42', max_per_run=1))
+            engine = Engine(directory, {'id': 'log-test', 'mode': 'download', 'config': conf, 'args': {}}, client=FakeClient(conf))
+            engine.connect = lambda force=False: engine.client.base
+            engine.run()
+            for page in range(20):
+                engine.status(pages_done=page)
+            content = (Path(temp) / 'log' / 'wolf_downloader.log').read_text()
+            self.assertIn('작업 실행: download', content)
+            self.assertIn('다운로드 완료: 시험 작품', content)
+            self.assertEqual(content.count('작업 완료: 성공'), 1)
+
+
 class ParserTests(unittest.TestCase):
     def test_leading_list_number_overrides_story_episode_number(self):
         html = '<h1>화산귀환</h1><a href="/view?toon=42&num=187">187 화산귀환 181화 2026-09-09</a>'
