@@ -24,11 +24,12 @@ def main():
         resource.setrlimit(resource.RLIMIT_AS, (cap, old_hard))
     except (ImportError, OSError, ValueError):
         pass
-    from common import read_json, write_json, Cancelled
+    from common import read_json, write_json, Cancelled, write_log
     from engine import Engine
     job = read_json(directory / 'job.json')
     (directory / 'job.json').unlink(missing_ok=True)
     if not job:
+        write_log(directory, 'ERROR', '작업 설정을 읽지 못했습니다.')
         write_json(directory / 'status.json', {'status': 'error', 'message': '작업 설정을 읽지 못했습니다.'})
         return
     engine = None
@@ -46,6 +47,7 @@ def main():
             engine.status(status='error', message=message)
             engine.notify('alert', message)
         else:
+            write_log(directory, 'ERROR', '작업 초기화 실패: ' + type(exc).__name__)
             write_json(directory / 'status.json', {'id': job['id'], 'status': 'error', 'message': message})
 
 
