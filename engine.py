@@ -49,6 +49,7 @@ class Engine:
         write_json(self.directory / 'status.json', self.state)
 
     def warn(self, message):
+        self.state['warning_count'] = self.state.get('warning_count', 0) + 1
         self.log('WARNING', message)
         self.state['warnings'] = (self.state['warnings'] + [message])[-10:]
         self.status()
@@ -105,8 +106,8 @@ class Engine:
             self.config['cookie'] = ''
         write_json(self.directory / 'domain.json', {'base_url': new, 'configured_base': self.config['base_url'], 'family': self.config['domain_family']})
         self.status(base_url=new)
-        if previous != new:
-            self.notify('alert', '늑대 다운로더 도메인 확인: ' + new)
+        if urlsplit(previous or '').hostname != urlsplit(new).hostname:
+            self.notify('alert', '늑대 다운로더 도메인 갱신 완료\n이전 주소: {}\n새 주소: {}'.format(previous or '(없음)', new))
         return new
 
     def work_dir(self, work, migrate=False):
@@ -628,6 +629,7 @@ class Engine:
             self.status(message='기존 완료 회차 ZIP 변환 중')
 
     def run(self):
+        started = time.monotonic()
         mode = self.job['mode']
         if mode == 'notify_test':
             self.notify(self.args.get('kind', 'alert'), '늑대 다운로더 테스트 알림')
@@ -725,3 +727,5 @@ class Engine:
         self.status(status='done', staging_path='', target_path='', message='작업 완료: 성공 {}, 실패 {}'.format(self.state['completed'], self.state['failed']))
         if mode == 'download' and self.state['completed']:
             self.notify('download', '늑대 다운로더: {}회차 완료 / {}건 실패'.format(self.state['completed'], self.state['failed']))
+        if mode == 'reconcile':
+            self.notify('download', '늑대 다운로더 기존 파일 이력 반영 완료\n대상 작품: {}개\n이력 반영: {}회차\n실패: {}건 / 경고: {}건\n소요 시간: {:.1f}초'.format(len(ids), self.state['completed'], self.state['failed'], self.state.get('warning_count', 0), time.monotonic() - started))
