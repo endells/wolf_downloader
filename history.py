@@ -31,6 +31,15 @@ class History:
             db.execute('INSERT OR IGNORE INTO episodes (work_id, ep_id) VALUES (?, ?)', (str(wid), str(ep)))
             db.execute('UPDATE episodes SET ' + ','.join(k + '=?' for k in values) + ' WHERE work_id=? AND ep_id=?', list(values.values()) + [str(wid), str(ep)])
 
+    def save_many(self, rows):
+        """Commit a bounded group of reconciliation results together."""
+        updated = datetime.now(timezone.utc).isoformat()
+        with self.connect() as db:
+            for wid, eid, title, episode, path, pages in rows:
+                db.execute('INSERT OR IGNORE INTO episodes (work_id, ep_id) VALUES (?, ?)', (str(wid), str(eid)))
+                db.execute("UPDATE episodes SET work_title=?, title=?, status='completed', path=?, pages=?, error='', updated=? WHERE work_id=? AND ep_id=?",
+                           (title, episode, path, pages, updated, str(wid), str(eid)))
+
     def get(self, wid, ep):
         with self.connect() as db:
             row = db.execute('SELECT * FROM episodes WHERE work_id=? AND ep_id=?', (str(wid), str(ep))).fetchone()
