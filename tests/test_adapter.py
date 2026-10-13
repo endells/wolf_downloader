@@ -82,17 +82,27 @@ class AdapterTests(unittest.TestCase):
 
     def test_settings_sections_and_duplicate_action_locations(self):
         html = self.client.get('/wolf_downloader/basic/setting').get_data(as_text=True)
-        self.assertNotIn('<nav>', html)
-        self.assertLess(html.index('인증 · 알림 · 고급 설정'), html.index('설정 저장은 다운로드'))
-        self.assertLess(html.index('기존 파일 관리'), html.index('설정 저장은 다운로드'))
-        self.assertLess(html.index('id="save_top"'), html.index('설정 저장은 다운로드'))
-        self.assertGreater(html.index('id="save"'), html.index('id="basic_interval"'))
-        self.assertIn("bind('save_top',saveSettings)", html)
-        self.assertIn("bind('save',saveSettings)", html)
-        for page in ('manual', 'browse', 'status', 'history'):
-            other = self.client.get('/wolf_downloader/basic/' + page).get_data(as_text=True)
-            self.assertNotIn('<summary>기존 파일 관리', other)
-            self.assertNotIn('<nav>', other)
+        from html.parser import HTMLParser
+        class Panels(HTMLParser):
+            def __init__(self):
+                super().__init__(); self.tabs=[]; self.panels=[]
+            def handle_starttag(self, tag, attrs):
+                attrs=dict(attrs)
+                if attrs.get('role')=='tab':self.tabs.append(attrs)
+                if attrs.get('role')=='tabpanel':self.panels.append(attrs)
+        parsed=Panels();parsed.feed(html)
+        self.assertEqual([x['data-settings-tab'] for x in parsed.tabs], ['basic','advanced','files'])
+        self.assertEqual([('hidden' in x) for x in parsed.panels], [False,True,True])
+        self.assertNotIn('<details>',html)
+        self.assertNotIn('<summary>',html)
+        self.assertLess(html.index('id="tab-basic"'),html.index('id="save_top"'))
+        self.assertLess(html.index('id="save_top"'),html.index('설정 저장은 다운로드'))
+        self.assertGreater(html.index('id="save"'),html.index('id="panel-files"'))
+        self.assertIn("bind('save_top',saveSettings)",html)
+        self.assertIn("bind('save',saveSettings)",html)
+        for page in ('manual','browse','status','history'):
+            other=self.client.get('/wolf_downloader/basic/'+page).get_data(as_text=True)
+            self.assertNotIn('role="tablist"',other)
 
     def test_save_and_auto_add_do_not_start_download(self):
         config=self.module.config()
