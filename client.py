@@ -104,7 +104,9 @@ def parse_work(html, url, work_id):
         num = link_id(href, 'num')
         if num and urlsplit(href).path.rstrip('/').endswith('/view'):
             label = a.attrs.get('title') or a.text() or ('회차 ' + num)
-            no = re.search(r'(\d+(?:\.\d+)?)\s*[화회]', label)
+            no = re.match(r'^\s*(\d+(?:\.\d+)?)(?:\s+|_)', label)
+            if not no:
+                no = re.search(r'(\d+(?:\.\d+)?)\s*[화회]', label)
             episodes.setdefault(num, {'id': num, 'title': label, 'no': float(no.group(1)) if no else int(num)})
         elif urlsplit(href).path.rstrip('/').endswith('/list') and any(k in parse_qs(urlsplit(href).query) for k in ('page', 'pg')):
             pages.add(href)
