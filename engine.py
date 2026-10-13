@@ -435,6 +435,86 @@ class Engine:
         self.history.save(wid, eid, status='completed', path=str(target), pages=len(images), bytes=total, error='')
         self.log('INFO', '다운로드 완료: {} / {} / {}장 / {}'.format(work['title'], ep['title'], len(images), target))
 
+    def repair_existing(self, work, ep, folder, candidates):
+        broken = []
+        for path in candidates:
+            if not path.is_file():
+                continue
+            try:
+                self.archive_page_count(path)
+            except (Cancelled, Blocked):
+                raise
+            except (zipfile.BadZipFile, WolfError):
+                broken.append((path, self.file_stamp(path)))
+            except OSError:
+                # Permission/device failures do not prove corrupt contents.
+                self.warn(path.name + ': 접근 실패로 자동 복구 제외')
+                return []
+        if not broken:
+            return candidates
+        def chapter(text):
+            match = re.search(r'(\d+(?:\.\d+)?)\s*화', text)
+            return float(match.group(1)) if match else None
+        expected = chapter(ep['title'])
+        for path, _ in broken:
+            actual = chapter(re.sub(r'^\d+(?:\.\d+)?_', '', path.stem))
+            if actual is not None and expected is not None and actual != expected:
+                self.warn(path.name + ': 앞번호와 제목 화수가 사이트 회차와 일치하지 않아 자동 복구 제외')
+                return []
+            if actual is not None and expected is None:
+                self.warn(path.name + ': 사이트 제목 화수를 확인할 수 없어 자동 복구 제외')
+                return []
+        # Cross-check adjacent filenames against their corresponding site entries.
+        neighbors = {float(e['no']): e for e in work['episodes'] if abs(float(e['no']) - float(ep['no'])) == 1}
+        for neighbor in folder.iterdir():
+            prefix = re.match(r'^(\d+(?:\.\d+)?)_', neighbor.name)
+            if neighbor.is_symlink() or not neighbor.is_file() or not prefix:
+                continue
+            nearby = neighbors.get(float(prefix.group(1)))
+            if nearby:
+                local_chapter = chapter(re.sub(r'^\d+(?:\.\d+)?_', '', neighbor.stem))
+                site_chapter = chapter(nearby['title'])
+                if local_chapter is not None and site_chapter is not None and local_chapter != site_chapter:
+                    self.warn(ep['title'] + ': 앞뒤 파일과 사이트 회차 배열이 달라 자동 복구 제외')
+                    return []
+        repair_folder = inside(folder, '.repair-' + str(ep['id']))
+        repair_folder.mkdir(exist_ok=True)
+        compress = self.config['use_compress']
+        try:
+            self.config['use_compress'] = True
+            self.status(message='손상된 기존 ZIP 재다운로드 중', work_title=work['title'], episode=ep['title'])
+            self.download_episode(work, ep, repair_folder)
+            record = self.history.get(work['id'], ep['id'])
+            downloaded = Path(record['path'])
+            target = inside(folder, downloaded.name)
+            broken_paths = {path for path, _ in broken}
+            if target.exists() and target not in broken_paths:
+                raise WolfError('정상 파일과 이름이 겹쳐 자동 교체하지 않았습니다.')
+            if any(not path.exists() or self.file_stamp(path) != stamp for path, stamp in broken):
+                raise WolfError('복구 도중 기존 파일이 변경되어 자동 교체하지 않았습니다.')
+            self.client.check()
+            os.replace(downloaded, target)
+            for path, _ in broken:
+                if path != target:
+                    path.unlink()
+            self.history.save(work['id'], ep['id'], status='completed', path=str(target), pages=record['pages'], error='')
+            self.state['repaired'] = self.state.get('repaired', 0) + 1
+            self.log('INFO', '기존 ZIP 복구 완료: {} / {}'.format(work['title'], ep['title']))
+            self.notify_downloaded(work, [ep])
+            if not any(repair_folder.iterdir()):
+                repair_folder.rmdir()
+            return [p for p in candidates if p not in broken_paths] + [target]
+        except (Cancelled, Blocked):
+            self.history.save(work['id'], ep['id'], status='interrupted', path=str(broken[0][0]), error='기존 ZIP 복구 중단')
+            raise
+        except (WolfError, OSError) as exc:
+            self.state['failed'] += 1
+            self.history.save(work['id'], ep['id'], status='failed', path=str(broken[0][0]), error='기존 ZIP 복구 실패')
+            self.warn(ep['title'] + ': 재다운로드 실패, 기존 파일 유지 (' + type(exc).__name__ + ')')
+            return []
+        finally:
+            self.config['use_compress'] = compress
+
     def reconcile(self, work, folder):
         if str(work['id']) not in title_ids(self.config['titles']) or not folder.name.endswith(' [{}]'.format(work['id'])):
             return
@@ -467,6 +547,10 @@ class Engine:
                     self.warn('사이트 목록 번호가 중복되어 건너뜀: ' + str(ep['no']))
                     continue
                 cached = entries.get(ep['id'], {})
+                if not (len(candidates) == 1 and candidates[0].is_file() and cached.get('stamp') == self.file_stamp(candidates[0])):
+                    candidates = self.repair_existing(work, ep, folder, candidates)
+                    if not candidates:
+                        continue
                 if len(candidates) == 1 and candidates[0].is_file():
                     found = candidates[0]
                     try:
@@ -728,4 +812,4 @@ class Engine:
         if mode == 'download' and self.state['completed']:
             self.notify('download', '늑대 다운로더: {}회차 완료 / {}건 실패'.format(self.state['completed'], self.state['failed']))
         if mode == 'reconcile':
-            self.notify('download', '늑대 다운로더 기존 파일 이력 반영 완료\n대상 작품: {}개\n이력 반영: {}회차\n실패: {}건 / 경고: {}건\n소요 시간: {:.1f}초'.format(len(ids), self.state['completed'], self.state['failed'], self.state.get('warning_count', 0), time.monotonic() - started))
+            self.notify('download', '늑대 다운로더 기존 파일 이력 반영 완료\n대상 작품: {}개\n이력 반영: {}회차\n실패: {}건 / 경고: {}건\n손상 파일 복구: {}회차\n소요 시간: {:.1f}초'.format(len(ids), self.state['completed'], self.state['failed'], self.state.get('warning_count', 0), self.state.get('repaired', 0), time.monotonic() - started))
