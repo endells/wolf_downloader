@@ -270,6 +270,52 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(WolfError):
             validate(dict(self.conf, backup_retention_days=-1))
 
+    def test_reconcile_completion_notification_with_counts(self):
+        self.make_archive('0003_시험 작품 3화.zip')
+        self.job['mode'] = 'reconcile'
+        with patch.object(self.engine, 'notify') as notify:
+            self.engine.run()
+        notify.assert_called_once()
+        kind, message = notify.call_args.args
+        self.assertEqual(kind, 'download')
+        self.assertIn('기존 파일 이력 반영 완료', message)
+        self.assertIn('이력 반영: 1회차', message)
+        self.assertIn('소요 시간:', message)
+
+    def test_reconcile_empty_and_partial_failure_notify(self):
+        self.job['mode'] = 'reconcile'
+        with patch.object(self.engine, 'notify') as notify:
+            self.engine.run()
+        self.assertIn('이력 반영: 0회차', notify.call_args.args[1])
+        with patch.object(self.client, 'work', side_effect=WolfError('failure')), patch.object(self.engine, 'notify') as notify:
+            self.engine.run()
+        self.assertIn('실패: 1건', notify.call_args.args[1])
+
+    def test_reconcile_cancel_does_not_notify_completion(self):
+        self.job['mode'] = 'reconcile'
+        with patch.object(self.client, 'work', side_effect=Cancelled('stop')), patch.object(self.engine, 'notify') as notify:
+            with self.assertRaises(Cancelled):
+                self.engine.run()
+        notify.assert_not_called()
+
+    def test_domain_change_notifies_old_and_new_once(self):
+        with patch('engine.resolve', return_value='https://wfwf101.com'), patch.object(self.engine, 'notify') as notify:
+            Engine.connect(self.engine)
+            Engine.connect(self.engine)
+        notify.assert_called_once()
+        self.assertEqual(notify.call_args.args[0], 'alert')
+        self.assertIn('이전 주소: https://wfwf100.com', notify.call_args.args[1])
+        self.assertIn('새 주소: https://wfwf101.com', notify.call_args.args[1])
+
+    def test_same_domain_and_failed_resolution_do_not_notify(self):
+        with patch('engine.resolve', return_value=self.client.base), patch.object(self.engine, 'notify') as notify:
+            Engine.connect(self.engine, force=True)
+        notify.assert_not_called()
+        with patch('engine.resolve', side_effect=WolfError('unavailable')), patch.object(self.engine, 'notify') as notify:
+            with self.assertRaises(WolfError):
+                Engine.connect(self.engine, force=True)
+        notify.assert_not_called()
+
     def test_wrong_hash_count_corrected_from_images(self):
         old = self.make_archive('0003_시험 작품 177화#77.zip')
         self.job['mode'] = 'reconcile'
