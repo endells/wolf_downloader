@@ -91,31 +91,47 @@ class Engine:
             self.notify('alert', '늑대 다운로더 도메인 확인: ' + new)
         return new
 
-    def work_dir(self, work):
+    def work_dir(self, work, migrate=False):
         title = clean_work_title(work['title'])
         if not title:
             raise WolfError('작품명을 확인하지 못해 저장을 중지했습니다.')
         root = Path(self.config['download_path']).resolve()
         name = safe_name(title)
-        names = (name, '{} [{}]'.format(name, work['id']))
-        matches = []
-        # Look only at exact names in the selected root and the legacy root.
-        # Do not recursively scan every episode or merge ambiguous libraries.
+        tagged_name = '{} [{}]'.format(name, work['id'])
+        tagged, plain = [], []
         for parent in (root, inside(root, 'manhwa')):
-            for candidate in names:
-                path = inside(root, str(parent.relative_to(root)), candidate)
-                if not path.is_dir():
+            for candidate, matches in ((tagged_name, tagged), (name, plain)):
+                if matches is plain and not migrate:
                     continue
+                path = inside(root, str(parent.relative_to(root)), candidate)
+                if not path.exists():
+                    continue
+                if not path.is_dir():
+                    raise WolfError('작품 폴더와 같은 이름의 파일이 있습니다: ' + str(path))
                 marker = read_json(path / '.wolf-work.json', {})
                 if marker and str(marker.get('id')) != str(work['id']):
                     raise WolfError('같은 작품명 폴더에 다른 작품 ID가 있습니다: ' + str(path))
-                if path not in matches:
-                    matches.append(path)
-        if len(matches) > 1:
-            raise WolfError('기존 작품 폴더가 여러 개입니다. 다운로드 경로를 한 폴더만 포함하도록 지정하세요: ' + ', '.join(str(p) for p in matches))
-        if matches:
-            return matches[0]
-        return inside(root, names[1])
+                matches.append(path)
+        if len(tagged) > 1 or (migrate and (len(plain) > 1 or (plain and tagged))):
+            raise WolfError('기존 작품 폴더가 중복되어 이름 변경·병합하지 않았습니다: ' + ', '.join(str(p) for p in tagged + plain))
+        if migrate and plain:
+            if str(work['id']) not in title_ids(self.config['titles']):
+                raise WolfError('자동 수집 목록 밖의 작품은 이름 변경하지 않습니다.')
+            source = plain[0]
+            target = source.with_name(tagged_name)
+            self.client.check()
+            if target.exists():
+                raise WolfError('대상 폴더가 이미 있어 이름 변경하지 않았습니다: ' + str(target))
+            source.rename(target)
+            self.history.relocate_work(work['id'], source, target)
+            self.status(message='작품 폴더 이름 변경: ' + target.name)
+            return target
+        if tagged:
+            if migrate:
+                # Recover a process interruption between rename and DB update.
+                self.history.relocate_work(work['id'], tagged[0].with_name(name), tagged[0])
+            return tagged[0]
+        return inside(root, tagged_name)
 
     def episode_name(self, ep):
         no = ep['no']
@@ -147,7 +163,7 @@ class Engine:
         # History is reusable only within the current root; a new destination
         # must actually receive downloads, even if old history still exists.
         root = Path(self.config['download_path']).resolve()
-        if root not in path.resolve().parents:
+        if root not in path.resolve().parents or not path.parent.name.endswith(' [{}]'.format(record['work_id'])):
             return False
         return self.check_artifact(path, int(record.get('pages') or 0))
 
@@ -197,8 +213,12 @@ class Engine:
 
     def download_episode(self, work, ep, folder):
         wid, eid = work['id'], ep['id']
-        self.status(work_title=work['title'], episode=ep['title'], pages_done=0, pages_total=0, message='회차 분석 중')
-        self.history.save(wid, eid, work_title=work['title'], title=ep['title'], status='downloading', error='')
+        stage = inside(folder, '.download-' + eid)
+        target = inside(folder, self.episode_name(ep))
+        if self.config['use_compress']:
+            target = target.with_name(target.name + '.zip')
+        self.status(work_title=work['title'], episode=ep['title'], pages_done=0, pages_total=0, message='회차 분석 중', staging_path=str(stage), target_path=str(target))
+        self.history.save(wid, eid, work_title=work['title'], title=ep['title'], status='downloading', path=str(stage), pages=0, bytes=0, error='')
         url = self.client.base + '/view?' + urlencode({'toon': wid, 'num': eid})
         html, actual = self.client.html(url)
         images = parse_images(html, actual, self.config['viewer_selector'])
@@ -267,8 +287,9 @@ class Engine:
         self.history.save(wid, eid, status='completed', path=str(target), pages=len(images), bytes=total, error='')
 
     def reconcile(self, work, folder):
-        roots = [folder, inside(self.config['download_path'], safe_name(work['title'])),
-                 inside(self.config['download_path'], 'manhwa', safe_name(work['title']))]
+        if str(work['id']) not in title_ids(self.config['titles']) or not folder.name.endswith(' [{}]'.format(work['id'])):
+            return
+        roots = [folder]
         for ep in work['episodes']:
             self.client.check()
             names = [self.episode_name(ep), '{}_{}'.format(str(int(ep['no'])).zfill(4), safe_name(ep['title']))]
@@ -339,7 +360,8 @@ class Engine:
             self.result(catalog=self.client.browse(self.args))
             self.status(status='done', message='목록 조회 완료')
             return
-        ids = [self.args['work_id']] if self.args.get('work_id') else title_ids(self.config['titles'])
+        maintenance = mode in ('reconcile', 'metadata', 'compress')
+        ids = title_ids(self.config['titles']) if maintenance else ([self.args['work_id']] if self.args.get('work_id') else title_ids(self.config['titles']))
         if not ids:
             raise WolfError('자동 수집 작품 목록이 비어 있습니다.')
         for wid in ids:
@@ -349,7 +371,7 @@ class Engine:
             work = None
             try:
                 work = self.client.work(wid)
-                folder = self.work_dir(work)
+                folder = self.work_dir(work, migrate=(mode == 'reconcile'))
                 if len(work['episodes']) > 10000:
                     raise WolfError('회차 수 한도(10000)를 초과했습니다.')
                 if mode == 'analyze':
@@ -409,6 +431,6 @@ class Engine:
             finally:
                 if mode == 'download' and downloaded:
                     self.notify_downloaded(work, downloaded)
-        self.status(status='done', message='작업 완료: 성공 {}, 실패 {}'.format(self.state['completed'], self.state['failed']))
+        self.status(status='done', staging_path='', target_path='', message='작업 완료: 성공 {}, 실패 {}'.format(self.state['completed'], self.state['failed']))
         if mode == 'download' and self.state['completed']:
             self.notify('download', '늑대 다운로더: {}회차 완료 / {}건 실패'.format(self.state['completed'], self.state['failed']))
