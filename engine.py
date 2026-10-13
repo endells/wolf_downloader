@@ -12,7 +12,7 @@ from urllib.parse import urlencode, urlsplit
 from xml.etree import ElementTree as ET
 
 from client import Client, parse_images, image_extension, clean_work_title
-from common import WolfError, Blocked, Cancelled, atomic_bytes, inside, read_json, safe_name, title_ids, write_json
+from common import WolfError, Blocked, Cancelled, atomic_bytes, inside, read_json, safe_name, title_ids, write_json, write_log
 from domains import resolve, verify
 from history import History
 
@@ -31,12 +31,25 @@ class Engine:
                       'done': 0, 'total': 0, 'completed': 0, 'skipped': 0, 'failed': 0,
                       'pages_done': 0, 'pages_total': 0, 'warnings': []}
         self.last_status = 0
+        self.last_log_event = None
+        self.log('INFO', '작업 실행: ' + job['mode'])
+
+    def log(self, level, message):
+        secrets = list(self.config.get('secrets', {}).values()) + [self.config.get('cookie', '')]
+        if not write_log(self.directory, level, '[{}] {}'.format(self.job['id'][:8], message), secrets):
+            self.state['log_error'] = '로그 파일 쓰기 실패: 데이터 폴더 권한 또는 디스크 공간을 확인하세요.'
 
     def status(self, **values):
         self.state.update(values)
+        event = tuple(self.state.get(k, '') for k in ('status', 'work_title', 'episode', 'message'))
+        if event != self.last_log_event:
+            level = 'ERROR' if self.state['status'] == 'error' else ('WARNING' if self.state['status'] in ('canceled', 'interrupted') else 'INFO')
+            self.log(level, ' / '.join(str(x) for x in event if x))
+            self.last_log_event = event
         write_json(self.directory / 'status.json', self.state)
 
     def warn(self, message):
+        self.log('WARNING', message)
         self.state['warnings'] = (self.state['warnings'] + [message])[-10:]
         self.status()
 
@@ -334,6 +347,7 @@ class Engine:
             if backup.exists():
                 shutil.rmtree(backup)
         self.history.save(wid, eid, status='completed', path=str(target), pages=len(images), bytes=total, error='')
+        self.log('INFO', '다운로드 완료: {} / {} / {}장 / {}'.format(work['title'], ep['title'], len(images), target))
 
     def reconcile(self, work, folder):
         if str(work['id']) not in title_ids(self.config['titles']) or not folder.name.endswith(' [{}]'.format(work['id'])):
