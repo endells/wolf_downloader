@@ -191,6 +191,25 @@ class AdapterTests(unittest.TestCase):
         r=self.client.post('/wolf_downloader/ajax/basic/command',data={'command':'run'})
         self.assertEqual(r.status_code,403);self.module.manager.start.assert_not_called()
 
+    def test_separate_registration_moves_membership_without_downloading(self):
+        self.settings.update(titles='42', separate_path=self.tmp.name+'/separate')
+        self.assertEqual(self.call('add_auto', '42', 'separate')['ret'], 'success')
+        self.assertEqual(self.settings['titles'], '')
+        self.assertEqual(self.settings['separate_titles'], '42')
+        self.assertEqual(self.call('titles', 'separate')['rows'][0]['id'], '42')
+        self.assertEqual(self.call('add_auto', '42')['ret'], 'success')
+        self.assertEqual(self.settings['separate_titles'], '')
+        self.module.manager.start.assert_not_called()
+
+    def test_manual_separate_flag_and_missing_path(self):
+        data = {'command':'download', 'arg1':'42', 'arg2':'["3"]', 'csrf_token':'token', 'separate':'true'}
+        url = '/wolf_downloader/ajax/basic/command'
+        self.assertEqual(self.client.post(url, data=data).get_json()['ret'], 'error')
+        self.module.manager.start.assert_not_called()
+        self.settings['separate_path'] = self.tmp.name+'/separate'
+        self.assertEqual(self.client.post(url, data=data).get_json()['ret'], 'success')
+        self.assertEqual(self.module.manager.start.call_args.args[2], {'work_id':'42', 'selected':['3'], 'separate':True})
+
     def test_secret_not_in_rendered_page(self):
         conf=dict(self.module.config(),base_url='https://wfwf100.com',cookie='very-secret-value=1')
         self.assertEqual(self.call('save',json.dumps(conf))['ret'],'success')
@@ -208,4 +227,5 @@ class AdapterTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
 
