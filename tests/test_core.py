@@ -430,6 +430,23 @@ class CoreTests(unittest.TestCase):
         self.assertIn('작품: 시험 작품', alerts[0])
         self.assertIn('회차: 3화', alerts[0])
 
+    def test_badge_tooltip_does_not_override_overall_index(self):
+        work, _ = parse_work('<h1>갓 오브 블랙필드</h1><a href="/view?toon=4579&num=9" title="UP 갓 오브 블랙필드 4부 59화">339 갓 오브 블랙필드 4부 59화 2026-10-17</a>', 'https://wfwf100.com/list?toon=4579', '4579')
+        self.assertEqual(work['episodes'][0]['no'], 339)
+        self.assertEqual(self.engine.episode_name(work['episodes'][0]), '0339_갓 오브 블랙필드 4부 59화')
+
+    def test_episode_row_index_precedes_season_chapter(self):
+        work, _ = parse_work('<h1>갓 오브 블랙필드</h1><table><tr><td>339</td><td><a href="/view?toon=4579&num=9">UP 갓 오브 블랙필드 4부 59화</a></td></tr></table>', 'https://wfwf100.com/list?toon=4579', '4579')
+        self.assertEqual(work['episodes'][0]['no'], 339)
+        self.assertNotIn('UP', self.engine.episode_name(work['episodes'][0]))
+
+    def test_existing_wrong_badge_name_gets_correct_overall_index(self):
+        old = self.make_archive('0059_UP 갓 오브 블랙필드 4부 59화 #2.zip')
+        work = dict(WORK, episodes=[{'id': '9', 'no': 339, 'title': '339 갓 오브 블랙필드 4부 59화 2026-10-17'}])
+        self.engine.reconcile(work, old.parent)
+        self.assertFalse(old.exists())
+        self.assertTrue(old.with_name('0339_갓 오브 블랙필드 4부 59화 #2.zip').exists())
+
     def test_wrong_hash_count_corrected_from_images(self):
         old = self.make_archive('0003_시험 작품 177화#77.zip')
         self.job['mode'] = 'reconcile'
@@ -992,3 +1009,4 @@ class ProcessTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
