@@ -148,6 +148,8 @@ class ModuleBasic(PluginModuleBase):
                     self.sync_schedule(conf, previous)
                 write_log(self.data_dir(), 'INFO', '설정 저장 완료 (다운로드 실행 없음)')
                 return jsonify(ret='success', msg='저장했습니다. 다운로드는 시작하지 않습니다.')
+            if command == 'recent_works':
+                return jsonify(ret='success', rows=History(self.data_dir() / 'history.db').recent_works())
             if command == 'titles':
                 return jsonify(ret='success', rows=History(self.data_dir() / 'history.db').registered(title_ids(self.P.ModelSetting.get('titles') or '')))
             if command == 'remove_auto':
