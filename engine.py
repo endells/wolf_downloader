@@ -169,6 +169,51 @@ class Engine:
             title = strip_episode_badges(leading.group(2))
         return safe_name(title or '회차')
 
+    def local_episode_title(self, ep, folder):
+        """Keep local edits; infer only from consecutive, compatible neighbors."""
+        source = self.clean_episode_title(ep['title'], ep['no'])
+        labels = {}
+        if not folder.is_dir():
+            return source
+        for path in folder.iterdir():
+            if path.is_symlink() or (not path.is_dir() and path.suffix.lower() not in ('.zip', '.cbz')):
+                continue
+            match = re.match(r'^(\d+(?:\.\d+)?)_(.+)$', path.stem if path.is_file() else path.name)
+            if not match or re.search(r'\[보존-\d+\]', match[2]):
+                continue
+            number = float(match[1])
+            labels.setdefault(number, set()).add(self.clean_episode_title(match[2], number))
+        number = float(ep['no'])
+        if len(labels.get(number, set())) == 1:
+            return next(iter(labels[number]))
+        def parts(label):
+            return re.fullmatch(r'(.*?)(\d+(?:\.\d+)?)\s*([화회])(.*)', label)
+        target = parts(source)
+        suggestions = []
+        for delta in (-1, 1):
+            neighbors = labels.get(number + delta, set())
+            if len(neighbors) != 1:
+                continue
+            item = parts(next(iter(neighbors)))
+            if not item:
+                continue
+            chapter = float(item[2]) - delta
+            if chapter < 0:
+                continue
+            # Do not carry an old season's naming across a numbering reset.
+            if target and float(target[2]) != chapter:
+                continue
+            if target:
+                season = lambda text: re.search(r'(?:시즌\s*(\d+)|(\d+)\s*부)', text)
+                old_season, new_season = season(item[1]), season(target[1])
+                if old_season and new_season and (old_season[1] or old_season[2]) != (new_season[1] or new_season[2]):
+                    continue
+            value = str(int(chapter)) if chapter.is_integer() else str(chapter)
+            suggestions.append(item[1] + value + item[3] + item[4])
+        if suggestions and len(set(suggestions)) == 1 and (target or len(suggestions) == 2):
+            return suggestions[0]
+        return source
+
     def archive_name(self, ep, pages):
         return '{} #{}.zip'.format(self.episode_name(ep), pages)
 
@@ -359,6 +404,7 @@ class Engine:
                         self.client.wait(.005)
 
     def download_episode(self, work, ep, folder):
+        ep = dict(ep, title=self.local_episode_title(ep, folder))
         wid, eid = work['id'], ep['id']
         stage = inside(folder, '.download-' + eid)
         target = inside(folder, self.episode_name(ep))
@@ -499,7 +545,8 @@ class Engine:
         try:
             self.config['use_compress'] = True
             self.status(message='손상된 기존 ZIP 재다운로드 중', work_title=work['title'], episode=ep['title'])
-            self.download_episode(work, ep, repair_folder)
+            named_ep = dict(ep, title=self.local_episode_title(ep, folder))
+            self.download_episode(work, named_ep, repair_folder)
             record = self.history.get(work['id'], ep['id'])
             downloaded = Path(record['path'])
             target = inside(folder, downloaded.name)
@@ -562,34 +609,6 @@ class Engine:
             return
         if not folder.is_dir():
             return
-        # Repair legacy badge-prefixed names using the full title, including season.
-        by_title = {}
-        for episode in work['episodes']:
-            key = self.clean_episode_title(episode['title'], episode['no'])
-            by_title.setdefault(key, []).append(episode)
-        for path in list(folder.iterdir()):
-            if path.is_symlink() or not path.is_file() or path.suffix.lower() not in ('.zip', '.cbz'):
-                continue
-            match = re.match(r'^(\d+(?:\.\d+)?)_(.+)$', path.stem)
-            if not match or strip_episode_badges(match[2]) == match[2]:
-                continue
-            matches = by_title.get(self.clean_episode_title(match[2], float(match[1])), [])
-            if len(matches) != 1:
-                self.warn(path.name + ': 배지 파일의 회차를 유일하게 확인할 수 없어 이름 유지')
-                continue
-            try:
-                pages = self.archive_page_count(path)
-                target = inside(folder, self.archive_name(matches[0], pages))
-                if target != path and not target.exists():
-                    self.client.check()
-                    path.rename(target)
-                    self.log('INFO', '기존 배지 파일명 수정: {} → {}'.format(path.name, target.name))
-                elif target != path:
-                    self.warn(path.name + ': 교정할 파일명이 이미 있어 기존 파일 유지')
-            except (Cancelled, Blocked):
-                raise
-            except (zipfile.BadZipFile, WolfError, OSError):
-                self.warn(path.name + ': 배지 파일 확인 실패로 이름 유지')
         cache_path = self.directory / ('reconcile-cache-' + str(work['id']) + '.json')
         cache = read_json(cache_path, {})
         context = ['fast-v2', self.client.base, self.config.get('domain_family'), self.config.get('viewer_selector'), self.config['episode_digits']]
