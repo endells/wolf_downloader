@@ -11,6 +11,7 @@ class History:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             db.execute('PRAGMA journal_mode=WAL')
+            db.execute('CREATE TABLE IF NOT EXISTS works (work_id TEXT PRIMARY KEY, title TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS episodes (work_id TEXT NOT NULL, ep_id TEXT NOT NULL, work_title TEXT, title TEXT, status TEXT, path TEXT, pages INTEGER DEFAULT 0, bytes INTEGER DEFAULT 0, error TEXT, updated TEXT, PRIMARY KEY(work_id,ep_id))')
 
     @contextmanager
@@ -39,6 +40,20 @@ class History:
                 db.execute('INSERT OR IGNORE INTO episodes (work_id, ep_id) VALUES (?, ?)', (str(wid), str(eid)))
                 db.execute("UPDATE episodes SET work_title=?, title=?, status='completed', path=?, pages=?, error='', updated=? WHERE work_id=? AND ep_id=?",
                            (title, episode, path, pages, updated, str(wid), str(eid)))
+
+    def remember_work(self, wid, title):
+        if title:
+            with self.connect() as db:
+                db.execute('INSERT OR REPLACE INTO works (work_id,title) VALUES (?,?)', (str(wid), str(title)))
+
+    def registered(self, ids):
+        with self.connect() as db:
+            names = {r['work_id']: r['title'] for r in db.execute('SELECT work_id,title FROM works')}
+            counts = {r['work_id']: r['n'] for r in db.execute("SELECT work_id,COUNT(*) AS n FROM episodes WHERE status='completed' GROUP BY work_id")}
+            for row in db.execute("SELECT work_id,work_title,MAX(updated) FROM episodes WHERE work_title IS NOT NULL AND work_title<>'' GROUP BY work_id"):
+                if row['work_id'] not in names:
+                    names[row['work_id']] = row['work_title']
+        return [{'id': str(wid), 'title': names.get(str(wid), '작품명 확인 전'), 'completed': counts.get(str(wid), 0)} for wid in ids]
 
     def completed_paths(self, wid):
         with self.connect() as db:
@@ -77,3 +92,4 @@ class History:
     def interrupt_stale(self):
         with self.connect() as db:
             db.execute("UPDATE episodes SET status='interrupted', error='이전 작업이 종료되었습니다. 다시 선택하여 재시도하세요.' WHERE status='downloading'")
+
