@@ -823,7 +823,10 @@ class Engine:
             self.status(status='done', message='검증된 도메인을 다음 작업에 자동 적용합니다.')
             return
         if mode == 'browse':
-            self.result(catalog=self.client.browse(self.args))
+            catalog = self.client.browse(self.args)
+            for row in catalog['rows']:
+                self.history.remember_work(row['id'], row['title'])
+            self.result(catalog=catalog)
             self.status(status='done', message='목록 조회 완료')
             return
         maintenance = mode in ('reconcile', 'metadata', 'compress')
@@ -837,6 +840,7 @@ class Engine:
             work = None
             try:
                 work = self.client.work(wid)
+                self.history.remember_work(wid, work['title'])
                 folder = self.work_dir(work, migrate=(mode == 'reconcile'))
                 if len(work['episodes']) > 10000:
                     raise WolfError('회차 수 한도(10000)를 초과했습니다.')
