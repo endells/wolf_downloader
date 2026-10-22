@@ -58,6 +58,7 @@ class Blocked(WolfError):
 
 
 DEFAULTS = {
+    'separate_path': '', 'separate_titles': '',
     'download_path': '', 'titles': '', 'base_url': '',
     'announcer_url': 'https://t.me/s/wftoon', 'auto_resolve_base_url': 'True',
     'domain_family': 'wfwf', 'max_per_run': '5', 'episode_digits': '4',
@@ -98,6 +99,18 @@ def validate(raw):
     if not Path(c['download_path']).is_absolute():
         raise WolfError('다운로드 경로는 FF 컨테이너 내부의 절대 경로입니다.')
     c['titles'] = '\n'.join(title_ids(c['titles']))
+    c['separate_titles'] = '\n'.join(title_ids(c['separate_titles']))
+    c['separate_path'] = str(c['separate_path']).strip()
+    if c['separate_titles'] and not c['separate_path']:
+        raise WolfError('별도 자동 수집 목록의 저장 경로를 입력하세요.')
+    if c['separate_path']:
+        if not Path(c['separate_path']).is_absolute():
+            raise WolfError('별도 저장 경로는 절대 경로로 입력하세요.')
+        base, separate = Path(c['download_path']).resolve(), Path(c['separate_path']).resolve()
+        if separate == base or base in separate.parents or separate in base.parents:
+            raise WolfError('기본 경로와 별도 경로는 서로 겹치지 않는 폴더로 지정하세요.')
+    if set(title_ids(c['titles'])) & set(title_ids(c['separate_titles'])):
+        raise WolfError('같은 작품을 기본·별도 목록에 중복 등록할 수 없습니다. 한 목록에만 넣으세요.')
     c['base_url'] = origin(c['base_url']) if str(c['base_url']).strip() else ''
     a = urlsplit(str(c['announcer_url']).strip())
     if a.hostname != 't.me' or not re.fullmatch(r'/s/[A-Za-z0-9_]+', a.path) or a.query:
@@ -172,3 +185,4 @@ def inside(root, *parts):
     if target != root and root not in target.parents:
         raise WolfError('저장 경로가 다운로드 폴더를 벗어났습니다.')
     return target
+
