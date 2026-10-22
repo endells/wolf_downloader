@@ -83,7 +83,7 @@
 .wd small,.wd-meta{opacity:1}.wd h3 small{display:inline-block;margin-left:8px;color:#b8c9df!important}.wd .wd-card{background:#182335;border-color:#435674}.wd .btn-primary,.wd .wd-settings-tabs button.active{background:#285fa8!important;border-color:#7db4ff!important}.wd .btn-success{background:#19685a!important;border-color:#6acbb3!important}.wd .btn-outline-danger{border-color:#c37a89!important;color:#ffc1cb!important}.wd .wd-file-intro,.wd .wd-file-guide{background:#182f49;color:#e8eff9;border-color:#526e91}.wd .wd-file-intro strong,.wd .wd-file-guide h4{color:#aad2ff!important}.wd .wd-file-caution{background:#30291e;color:#f8dba5;border-color:#826638}.wd code{background:#0e1726;color:#b9dcff}.wd .wd-file-guide p{color:inherit}.wd .wd-bar>div{background:#71b7ff}.wd #add-title{flex:1;min-width:180px;width:auto}.wd .wd-title-actions{display:flex;gap:6px;flex-wrap:wrap}.wd .wd-scroll{margin-top:12px}.wd #wd-message{color:#e1edff}.wd #wd-message.wd-error-message{color:#ffb3bd}.wd a.btn{background:#293d58;border:1px solid #6984a7;color:#f0f5ff!important}.wd input[type=number]{box-sizing:border-box}.wd .wd-path input{min-width:0}.wd .wd-path button{flex-shrink:0}
 </style>
 <div class="wd">
-<h3>늑대 다운로더 <small>0.1.19 · 독립 작업 프로세스</small></h3>
+<h3>늑대 다운로더 <small>0.1.20 · 독립 작업 프로세스</small></h3>
 <div class="wd-status" aria-live="polite">
  <div class="wd-line"><strong>작업 상태</strong><span id="state" class="wd-grow">확인 중…</span><button id="stop" class="btn btn-sm btn-outline-danger">중지</button></div>
  <div class="wd-meta"><span id="counts">회차 0 / 0</span><span id="pages">이미지 0 / 0</span><span id="schedule"></span><span id="domain"></span></div>
@@ -109,20 +109,24 @@
 <small>추가해도 즉시 다운로드하지 않습니다. 아래 표는 저장된 목록입니다. 저장 회차는 완료 이력 기준이며, 작품명은 작품 목록 조회·회차 분석·수집 후 표시됩니다.</small>
 <div class="wd-scroll"><table><thead><tr><th>작품</th><th>저장 회차</th><th>관리</th></tr></thead><tbody id="title-list"></tbody></table></div>
 <div class="wd-grid">
- <div><label for="base_url">사이트 도메인</label><input id="base_url" type="text" value="{{ config.base_url }}" placeholder="https://현재주소"><small>공지를 보고 입력하거나, 빈 상태에서 도메인 자동 갱신을 실행하세요.</small></div>
- <div><label for="domain_family">도메인 계열</label><select id="domain_family"><option value="wfwf" {% if config.domain_family == 'wfwf' %}selected{% endif %}>wfwf (늑대닷컴)</option><option value="wftoon" {% if config.domain_family == 'wftoon' %}selected{% endif %}>wftoon (늑대닷컴2 / 기존 구조)</option></select><small>다른 계열로 자동 전환하지 않습니다. 기존 /list?toon= 구조를 지원합니다.</small></div>
  <div><label for="max_per_run">자동 수집: 작품당 최대 회차</label><input id="max_per_run" type="number" min="0" max="10000" value="{{ config.max_per_run }}"><small>0 = 미완료 전체 · 최신 회차 우선. 수동 선택에는 이 제한을 적용하지 않습니다.</small></div>
  <div><label for="episode_digits">회차 번호 자릿수</label><input id="episode_digits" type="number" min="1" max="10" value="{{ config.episode_digits }}"><small>3자리: 001 · 4자리: 0001. 기존 파일 이름은 변경하지 않습니다.</small></div>
  <div><label for="request_delay">요청 간격 (초)</label><input id="request_delay" type="number" min="0.5" max="60" step="0.5" value="{{ config.request_delay }}"></div>
  <div><label for="bandwidth_mib">이미지 전송 속도 상한 (MiB/초)</label><input id="bandwidth_mib" type="number" min="0.1" max="50" step="0.1" value="{{ config.bandwidth_mib }}"><small>기본 2 MiB/s · 느린 NAS는 0.5~1 권장.</small></div>
  <div><label for="basic_interval">자동 수집 간격 (분)</label><input id="basic_interval" type="number" min="10" max="10080" value="{{ config.basic_interval }}"></div>
  <div><label for="backup_retention_days">보관 파일 유지 기간 (일)</label><input id="backup_retention_days" type="number" min="0" max="3650" value="{{ config.backup_retention_days }}"><small>기본 7일 · 0은 자동 삭제 끔. 원본 외 보관 파일은 내용이 달라도 기간 이후 다음 수집·이력 반영 때 삭제합니다.</small></div>
- <div><label class="wd-check"><input id="basic_auto_start" type="checkbox" {% if config.basic_auto_start %}checked{% endif %}> 자동 수집 사용</label><label class="wd-check"><input id="use_compress" type="checkbox" {% if config.use_compress %}checked{% endif %}> 완료 회차를 ZIP으로 저장 (재압축 없이 묶기)</label><label class="wd-check"><input id="auto_resolve_base_url" type="checkbox" {% if config.auto_resolve_base_url %}checked{% endif %}> 접속 실패 시 도메인 자동 갱신</label></div>
+ <div><label class="wd-check"><input id="basic_auto_start" type="checkbox" {% if config.basic_auto_start %}checked{% endif %}> 자동 수집 사용</label><label class="wd-check"><input id="use_compress" type="checkbox" {% if config.use_compress %}checked{% endif %}> 완료 회차를 ZIP으로 저장 (재압축 없이 묶기)</label></div>
 </div>
 </section>
 <section id="panel-advanced" role="tabpanel" aria-labelledby="tab-advanced" hidden>
 
 <label for="announcer_url">도메인 공지 채널</label><input id="announcer_url" type="text" value="{{ config.announcer_url }}"><small>기존 채널의 새 채널 안내 링크도 최대 3곳까지 따라갑니다.</small>
+<div class="wd-note" aria-live="polite"><strong>현재 적용 도메인</strong><div id="current-domain">{{ domain_state.url or '아직 설정되지 않았습니다.' }}</div><small id="current-domain-help">{% if domain_state.verified %}실제 접속 확인을 마친 주소입니다. 자동 갱신 결과가 여기에 반영됩니다.{% else %}저장된 입력 주소입니다. 도메인 확인 또는 자동 갱신 후 실제 접속 주소가 표시됩니다.{% endif %}</small></div>
+<div class="wd-grid"> <div><label for="base_url">직접 지정할 도메인</label><input id="base_url" type="text" value="{{ config.base_url }}" placeholder="https://현재주소"><small>수동 변경 시 입력하고 설정을 저장하세요. 자동 갱신으로 적용된 주소는 위에 표시됩니다.</small></div>
+ <div><label for="domain_family">도메인 계열</label><select id="domain_family"><option value="wfwf" {% if config.domain_family == 'wfwf' %}selected{% endif %}>wfwf (늑대닷컴)</option><option value="wftoon" {% if config.domain_family == 'wftoon' %}selected{% endif %}>wftoon (늑대닷컴2 / 기존 구조)</option></select><small>다른 계열로 자동 전환하지 않습니다. 기존 /list?toon= 구조를 지원합니다.</small></div></div>
+<label class="wd-check"><input id="auto_resolve_base_url" type="checkbox" {% if config.auto_resolve_base_url %}checked{% endif %}> 접속 실패 시 도메인 자동 갱신</label>
+<div class="wd-actions"><button class="btn btn-outline-primary job" data-command="resolve">도메인 자동 갱신</button><button class="btn btn-outline-secondary job" data-command="probe">현재 도메인 확인</button></div>
+
 <label for="cookie">브라우저 Cookie 헤더 값</label><input id="cookie" type="password" autocomplete="new-password" placeholder="{% if secrets_saved.cookie %}저장된 쿠키 있음 · 비우면 유지{% else %}선택 입력{% endif %}"><label class="wd-check"><input id="clear_cookie" type="checkbox"> 저장된 쿠키 삭제</label><small>JSON이 아닌 Cookie 헤더 문자열. 입력한 도메인에만 전송합니다. 도메인이 바뀌면 새 도메인에서 받은 쿠키를 다시 저장하세요.</small>
 {% for key,label in [('notify_webhook_download','다운로드 · 기존 파일 이력 반영 완료 알림'),('notify_webhook_alert','도메인 변경 · 오류 알림')] %}
 <label for="{{ key }}">{{ label }} 웹훅 (Discord / Slack)</label><input id="{{ key }}" type="password" autocomplete="new-password" placeholder="{% if secrets_saved[key] %}저장됨 · 비우면 유지{% else %}선택 입력{% endif %}"><label class="wd-check"><input id="clear_{{ key }}" type="checkbox"> 저장된 URL 삭제</label>
@@ -189,7 +193,7 @@ async function poll(){
  try{
   const {state:s}=await call('status');active=s.active;updateButtons();
   text('state',s.message||s.status);text('counts','회차 '+(s.done||0)+' / '+(s.total||0)+' · 완료 '+(s.completed||0)+' · 실패 '+(s.failed||0));
-  text('pages','이미지 '+(s.pages_done||0)+' / '+(s.pages_total||0));text('schedule','자동 수집 '+(s.scheduler_enabled?'사용':'꺼짐'));text('domain',s.base_url||'');text('warnings',(s.warnings||[]).concat(s.log_error?[s.log_error]:[]).join('\n'));
+  text('pages','이미지 '+(s.pages_done||0)+' / '+(s.pages_total||0));text('schedule','자동 수집 '+(s.scheduler_enabled?'사용':'꺼짐'));text('domain',s.base_url?'현재 도메인: '+s.base_url:'');if(s.domain_state){text('current-domain',s.domain_state.url||'아직 설정되지 않았습니다.');text('current-domain-help',s.domain_state.verified?'실제 접속 확인을 마친 주소입니다. 자동 갱신 결과가 여기에 반영됩니다.':'저장된 입력 주소입니다. 도메인 확인 또는 자동 갱신 후 실제 접속 주소가 표시됩니다.');}text('warnings',(s.warnings||[]).concat(s.log_error?[s.log_error]:[]).join('\n'));
   $id('bar').style.width=(s.total?Math.min(100,(s.done||0)/s.total*100):0)+'%';text('details',[s.work_title,s.episode,s.message,s.staging_path?'임시 저장: '+s.staging_path:'',s.target_path?'완료 예정: '+s.target_path:''].filter(Boolean).join(' / '));
   if(!active&&s.id&&resultId!==s.id){const r=await call('result');if(r.result.job_id===s.id){showResult(r.result);resultId=s.id;if(page==='setting')await titles();}}
  }catch(e){message(e.message,true);}finally{polling=false;if(alive)pollTimer=setTimeout(poll,active?2000:5000);}
@@ -243,7 +247,7 @@ bind('register-title',async()=>{
 if(page==='setting')titles().catch(e=>message(e.message,true));
 bind('stop',async()=>{message((await call('stop')).msg);});
 async function saveSettings(){const c={};{% for key in config %}if($id({{ key|tojson }}))c[{{ key|tojson }}]=$id({{ key|tojson }}).type==='checkbox'?$id({{ key|tojson }}).checked:$id({{ key|tojson }}).value;{% endfor %}
- ['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{c[k]=$id(k).value;c['clear_'+k]=$id('clear_'+k).checked;});const r=await call('save',c);message(r.msg);await titles();['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{$id(k).value='';$id('clear_'+k).checked=false;});}
+ ['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{c[k]=$id(k).value;c['clear_'+k]=$id('clear_'+k).checked;});const r=await call('save',c);message(r.msg);await titles();clearTimeout(pollTimer);poll();['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{$id(k).value='';$id('clear_'+k).checked=false;});}
 bind('save',saveSettings);bind('save_top',saveSettings);
 bind('path',async()=>{const r=await call('browse_path',$id('download_path').value);if(typeof globalSelectLocalFolder!=='function')throw new Error('FF 폴더 선택기를 사용할 수 없습니다. 경로를 직접 입력하세요.');globalSelectLocalFolder('다운로드 경로',r.path,result=>{$id('download_path').value=result;});});
 document.querySelectorAll('.wd [data-command]').forEach(b=>b.onclick=()=>start(b.dataset.command).catch(e=>message(e.message,true)));
