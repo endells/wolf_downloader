@@ -169,6 +169,24 @@ class AdapterTests(unittest.TestCase):
         self.settings['domain_family'] = 'wftoon'
         self.assertFalse(self.call('status')['state']['domain_state']['verified'])
 
+    def test_recent_works_limit_order_dedup_and_persistence(self):
+        from wolf_downloader.history import History
+        h = History(self.module.data_dir() / 'history.db')
+        h.save('10', '1', work_title='기존 작품', status='completed')
+        self.assertEqual(self.call('recent_works')['rows'], [{'id': '10', 'title': '기존 작품'}])
+        for i in range(20, 26):
+            h.remember_work(str(i), '작품 ' + str(i), recent=True)
+        h.remember_work('20', '다시 분석한 작품', recent=True)
+        h.remember_work('99', '목록에서만 조회한 작품')
+        # New connection must retain recent analysis even without episode history.
+        rows = self.call('recent_works')['rows']
+        self.assertEqual([r['id'] for r in rows], ['20', '25', '24', '23', '22'])
+        self.assertEqual(rows[0]['title'], '다시 분석한 작품')
+        self.module.manager.start.assert_not_called()
+        html = self.client.get('/wolf_downloader/basic/manual').get_data(as_text=True)
+        self.assertLess(html.index('id="work_url"'), html.index('id="recent-works"'))
+        self.assertLess(html.index('id="recent-works"'), html.index('id="analyze"'))
+
     def test_csrf_required(self):
         r=self.client.post('/wolf_downloader/ajax/basic/command',data={'command':'run'})
         self.assertEqual(r.status_code,403);self.module.manager.start.assert_not_called()
