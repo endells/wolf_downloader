@@ -440,12 +440,44 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(work['episodes'][0]['no'], 339)
         self.assertNotIn('UP', self.engine.episode_name(work['episodes'][0]))
 
-    def test_existing_wrong_badge_name_gets_correct_overall_index(self):
+    def test_reconcile_does_not_renumber_from_title(self):
         old = self.make_archive('0059_UP 갓 오브 블랙필드 4부 59화 #2.zip')
         work = dict(WORK, episodes=[{'id': '9', 'no': 339, 'title': '339 갓 오브 블랙필드 4부 59화 2026-10-17'}])
         self.engine.reconcile(work, old.parent)
-        self.assertFalse(old.exists())
-        self.assertTrue(old.with_name('0339_갓 오브 블랙필드 4부 59화 #2.zip').exists())
+        self.assertTrue(old.exists())
+        self.assertFalse(old.with_name('0339_갓 오브 블랙필드 4부 59화 #2.zip').exists())
+
+    def test_local_neighbor_preserves_season_style(self):
+        path = self.make_archive('0333_갓 오브 블랙필드 시즌4 53화 #2.zip')
+        ep = {'no': 334, 'title': '334 갓 오브 블랙필드 4부 54화 2026-10-10'}
+        self.assertEqual(self.engine.local_episode_title(ep, path.parent), '갓 오브 블랙필드 시즌4 54화')
+
+    def test_local_current_title_wins_over_site(self):
+        path = self.make_archive('0334_내가 정리한 제목 시즌4 54화 #2.zip')
+        ep = {'no': 334, 'title': '334 갓 오브 블랙필드 4부 54화'}
+        self.assertEqual(self.engine.local_episode_title(ep, path.parent), '내가 정리한 제목 시즌4 54화')
+
+    def test_local_neighbor_does_not_cross_season_reset(self):
+        path = self.make_archive('0333_갓 오브 블랙필드 시즌3 90화 #2.zip')
+        ep = {'no': 334, 'title': '334 갓 오브 블랙필드 4부 1화'}
+        self.assertEqual(self.engine.local_episode_title(ep, path.parent), '갓 오브 블랙필드 4부 1화')
+
+    def test_download_uses_local_neighbor_title_with_site_index(self):
+        self.make_archive('0002_수동으로 맞춘 제목 2화 #2.zip')
+        self.conf['use_compress'] = True
+        self.engine.run()
+        record = self.engine.history.get('42', '3')
+        self.assertEqual(Path(record['path']).name, '0003_수동으로 맞춘 제목 3화 #2.zip')
+
+    def test_reconcile_keeps_manual_title_and_index(self):
+        old = self.make_archive('0003_수동 제목 시즌4 59화#2.zip')
+        self.job['mode'] = 'reconcile'
+        self.engine.run()
+        self.assertTrue(old.with_name('0003_수동 제목 시즌4 59화 #2.zip').exists())
+
+    def test_title_chapter_is_not_used_as_index(self):
+        work, _ = parse_work('<h1>시험</h1><a href="/view?toon=42&num=9">UP 작품 4부 59화</a>', 'https://wfwf100.com/list?toon=42', '42')
+        self.assertIsNone(work['episodes'][0]['no'])
 
     def test_wrong_hash_count_corrected_from_images(self):
         old = self.make_archive('0003_시험 작품 177화#77.zip')
