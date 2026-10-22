@@ -11,6 +11,7 @@ class History:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             db.execute('PRAGMA journal_mode=WAL')
+            db.execute('CREATE TABLE IF NOT EXISTS recent_works (work_id TEXT PRIMARY KEY, updated TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS works (work_id TEXT PRIMARY KEY, title TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS episodes (work_id TEXT NOT NULL, ep_id TEXT NOT NULL, work_title TEXT, title TEXT, status TEXT, path TEXT, pages INTEGER DEFAULT 0, bytes INTEGER DEFAULT 0, error TEXT, updated TEXT, PRIMARY KEY(work_id,ep_id))')
 
@@ -41,10 +42,32 @@ class History:
                 db.execute("UPDATE episodes SET work_title=?, title=?, status='completed', path=?, pages=?, error='', updated=? WHERE work_id=? AND ep_id=?",
                            (title, episode, path, pages, updated, str(wid), str(eid)))
 
-    def remember_work(self, wid, title):
+    def remember_work(self, wid, title, recent=False):
         if title:
             with self.connect() as db:
                 db.execute('INSERT OR REPLACE INTO works (work_id,title) VALUES (?,?)', (str(wid), str(title)))
+                if recent:
+                    db.execute('INSERT OR REPLACE INTO recent_works (work_id,updated) VALUES (?,?)',
+                               (str(wid), datetime.now(timezone.utc).isoformat()))
+
+    def recent_works(self):
+        with self.connect() as db:
+            rows = db.execute("""
+                SELECT activity.work_id AS id,
+                       COALESCE(NULLIF(w.title,''), NULLIF(e.work_title,''), '작품명 확인 전') AS title
+                FROM (
+                    SELECT work_id, MAX(updated) AS updated FROM (
+                        SELECT work_id, updated FROM recent_works
+                        UNION ALL
+                        SELECT work_id, MAX(updated) AS updated FROM episodes GROUP BY work_id
+                    ) GROUP BY work_id
+                ) AS activity
+                LEFT JOIN works w ON w.work_id=activity.work_id
+                LEFT JOIN (SELECT work_id, work_title, MAX(updated) FROM episodes GROUP BY work_id) e
+                    ON e.work_id=activity.work_id
+                ORDER BY activity.updated DESC, activity.work_id ASC LIMIT 5
+            """).fetchall()
+        return [dict(row) for row in rows]
 
     def registered(self, ids):
         with self.connect() as db:
