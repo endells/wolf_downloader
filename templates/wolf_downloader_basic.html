@@ -83,7 +83,7 @@
 .wd small,.wd-meta{opacity:1}.wd h3 small{display:inline-block;margin-left:8px;color:#b8c9df!important}.wd .wd-card{background:#182335;border-color:#435674}.wd .btn-primary,.wd .wd-settings-tabs button.active{background:#285fa8!important;border-color:#7db4ff!important}.wd .btn-success{background:#19685a!important;border-color:#6acbb3!important}.wd .btn-outline-danger{border-color:#c37a89!important;color:#ffc1cb!important}.wd .wd-file-intro,.wd .wd-file-guide{background:#182f49;color:#e8eff9;border-color:#526e91}.wd .wd-file-intro strong,.wd .wd-file-guide h4{color:#aad2ff!important}.wd .wd-file-caution{background:#30291e;color:#f8dba5;border-color:#826638}.wd code{background:#0e1726;color:#b9dcff}.wd .wd-file-guide p{color:inherit}.wd .wd-bar>div{background:#71b7ff}.wd #add-title{flex:1;min-width:180px;width:auto}.wd .wd-title-actions{display:flex;gap:6px;flex-wrap:wrap}.wd .wd-scroll{margin-top:12px}.wd #wd-message{color:#e1edff}.wd #wd-message.wd-error-message{color:#ffb3bd}.wd a.btn{background:#293d58;border:1px solid #6984a7;color:#f0f5ff!important}.wd input[type=number]{box-sizing:border-box}.wd .wd-path input{min-width:0}.wd .wd-path button{flex-shrink:0}
 </style>
 <div class="wd">
-<h3>늑대 다운로더 <small>0.1.20 · 독립 작업 프로세스</small></h3>
+<h3>늑대 다운로더 <small>0.1.21 · 독립 작업 프로세스</small></h3>
 <div class="wd-status" aria-live="polite">
  <div class="wd-line"><strong>작업 상태</strong><span id="state" class="wd-grow">확인 중…</span><button id="stop" class="btn btn-sm btn-outline-danger">중지</button></div>
  <div class="wd-meta"><span id="counts">회차 0 / 0</span><span id="pages">이미지 0 / 0</span><span id="schedule"></span><span id="domain"></span></div>
@@ -159,7 +159,10 @@
 
 </div>
 {% elif page == 'manual' %}
-<div class="wd-panel"><label for="work_url">작품 URL / 번호</label><input id="work_url" type="text" placeholder="https://현재주소/list?toon=4461 또는 작품번호"><div class="wd-actions"><button id="analyze" class="btn btn-primary job">회차 분석</button><button id="add_auto" class="btn btn-outline-primary">자동 수집 추가</button><button id="download" class="btn btn-success job" disabled>선택 회차 다운로드</button></div>
+<div class="wd-panel"><label for="work_url">작품 URL / 번호</label><input id="work_url" type="text" placeholder="https://현재주소/list?toon=4461 또는 작품번호">
+<small>최근 작업한 작품 · 선택하면 번호만 입력됩니다.</small>
+<div id="recent-works" class="wd-actions" aria-label="최근 작업한 작품 5개"></div>
+<div class="wd-actions"><button id="analyze" class="btn btn-primary job">회차 분석</button><button id="add_auto" class="btn btn-outline-primary">자동 수집 추가</button><button id="download" class="btn btn-success job" disabled>선택 회차 다운로드</button></div>
 <h5 id="work_title"></h5><small>선택한 회차는 자동 수집 제한과 완료 이력에 관계없이 다시 받습니다. 기존 파일은 새 회차 저장이 끝날 때까지 보존됩니다.</small>
 <div class="wd-line"><label class="wd-check"><input id="select_all" type="checkbox"> 전체 선택</label><button id="incomplete" class="btn btn-sm btn-outline-secondary">미완료만</button><button id="invert" class="btn btn-sm btn-outline-secondary">선택 반전</button><span id="selection"></span></div>
 <div class="wd-scroll"><table><thead><tr><th>선택</th><th>번호</th><th>회차</th><th>이력</th></tr></thead><tbody id="episodes"></tbody></table></div><div class="wd-actions"><button id="ep_prev" class="btn btn-outline-secondary">이전</button><span id="ep_page"></span><button id="ep_next" class="btn btn-outline-secondary">다음</button></div></div>
@@ -195,7 +198,7 @@ async function poll(){
   text('state',s.message||s.status);text('counts','회차 '+(s.done||0)+' / '+(s.total||0)+' · 완료 '+(s.completed||0)+' · 실패 '+(s.failed||0));
   text('pages','이미지 '+(s.pages_done||0)+' / '+(s.pages_total||0));text('schedule','자동 수집 '+(s.scheduler_enabled?'사용':'꺼짐'));text('domain',s.base_url?'현재 도메인: '+s.base_url:'');if(s.domain_state){text('current-domain',s.domain_state.url||'아직 설정되지 않았습니다.');text('current-domain-help',s.domain_state.verified?'실제 접속 확인을 마친 주소입니다. 자동 갱신 결과가 여기에 반영됩니다.':'저장된 입력 주소입니다. 도메인 확인 또는 자동 갱신 후 실제 접속 주소가 표시됩니다.');}text('warnings',(s.warnings||[]).concat(s.log_error?[s.log_error]:[]).join('\n'));
   $id('bar').style.width=(s.total?Math.min(100,(s.done||0)/s.total*100):0)+'%';text('details',[s.work_title,s.episode,s.message,s.staging_path?'임시 저장: '+s.staging_path:'',s.target_path?'완료 예정: '+s.target_path:''].filter(Boolean).join(' / '));
-  if(!active&&s.id&&resultId!==s.id){const r=await call('result');if(r.result.job_id===s.id){showResult(r.result);resultId=s.id;if(page==='setting')await titles();}}
+  if(!active&&s.id&&resultId!==s.id){const r=await call('result');if(r.result.job_id===s.id){showResult(r.result);resultId=s.id;if(page==='setting')await titles();if(page==='manual')await recentWorks();}}
  }catch(e){message(e.message,true);}finally{polling=false;if(alive)pollTimer=setTimeout(poll,active?2000:5000);}
 }
 function showResult(r){
@@ -221,6 +224,20 @@ if(page==='setting'){
   t.addEventListener('keydown',e=>{let next;if(e.key==='ArrowRight')next=(index+1)%tabs.length;else if(e.key==='ArrowLeft')next=(index+tabs.length-1)%tabs.length;else if(e.key==='Home')next=0;else if(e.key==='End')next=tabs.length-1;else return;e.preventDefault();tabs[next].click();tabs[next].focus();});
  });
  selectSettingsTab('basic');
+}
+async function recentWorks(){
+ const r=await call('recent_works'),box=$id('recent-works');box.replaceChildren();
+ for(const row of r.rows){
+  const b=document.createElement('button');b.type='button';b.className='btn job';b.textContent=row.id+' · '+row.title;
+  b.onclick=()=>{
+   $id('work_url').value=row.id;
+   work=null;selected=new Set();epPage=1;$id('episodes').replaceChildren();
+   text('work_title','');text('selection','');text('ep_page','');$id('select_all').checked=false;
+   updateButtons();$id('work_url').focus();message('작품 번호를 입력했습니다. 회차 분석을 눌러주세요.');
+  };box.append(b);
+ }
+ if(!r.rows.length){const empty=document.createElement('small');empty.textContent='최근 작업한 작품이 없습니다. 회차 분석 또는 다운로드 후 표시됩니다.';box.append(empty);}
+ updateButtons();
 }
 async function titles(){
  const r=await call('titles'),box=$id('title-list');box.replaceChildren();
@@ -264,7 +281,7 @@ bind('search',()=>{searching=true;return browse(1);});bind('browse',()=>{searchi
 async function history(){const r=await call('history',{page:histPage,query:$id('history_query').value,status:$id('history_status').value});histMore=r.more;const box=$id('history');box.replaceChildren();r.rows.forEach(row=>{const tr=document.createElement('tr');[row.work_title+' / '+row.title,row.status,row.error||(row.status==='downloading'?'임시 저장: '+(row.path||'준비 중'):row.path),row.updated].forEach(v=>{const td=document.createElement('td');td.textContent=v||'';tr.append(td);});box.append(tr);});text('hist_page',histPage+' 페이지');}
 bind('history_refresh',()=>{histPage=1;return history();});bind('hist_prev',()=>{histPage=Math.max(1,histPage-1);return history();});bind('hist_next',()=>{if(histMore)histPage++;return history();});
 if(page==='history')history().catch(e=>message(e.message,true));
-if(page==='manual'){const id=new URLSearchParams(location.search).get('toon');if(id&&/^\d+$/.test(id))$id('work_url').value=id;}
+if(page==='manual'){recentWorks().catch(e=>message(e.message,true));const id=new URLSearchParams(location.search).get('toon');if(id&&/^\d+$/.test(id))$id('work_url').value=id;}
 poll();
 window.addEventListener('pagehide',()=>{alive=false;clearTimeout(pollTimer);});
 })();
