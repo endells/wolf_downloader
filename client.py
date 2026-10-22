@@ -85,6 +85,10 @@ def clean_work_title(value):
     return value
 
 
+def strip_episode_badges(value):
+    return re.sub(r'^(?:(?:UP|NEW|HOT)(?:\s+|_)+)+', '', str(value).strip(), flags=re.I).strip()
+
+
 def parse_work(html, url, work_id):
     doc = Document(html)
     meta = {n.attrs.get('property', n.attrs.get('name')): n.attrs.get('content', '') for n in doc.walk('meta')}
@@ -103,12 +107,26 @@ def parse_work(html, url, work_id):
             continue
         num = link_id(href, 'num')
         if num and urlsplit(href).path.rstrip('/').endswith('/view'):
-            tooltip, visible = a.attrs.get('title', ''), a.text()
-            label = visible if re.search(r'\d+(?:\.\d+)?\s*[화회]', visible) and not re.search(r'\d+(?:\.\d+)?\s*[화회]', tooltip) else tooltip or visible or ('회차 ' + num)
-            no = re.match(r'^\s*(\d+(?:\.\d+)?)(?:\s+|_)', label)
+            tooltip, visible = (strip_episode_badges(a.attrs.get('title', '')), strip_episode_badges(a.text()))
+            numbered = r'^\s*(\d+(?:\.\d+)?)(?:\s+|_)'
+            # A tooltip may omit the overall index even when the visible label has it.
+            label = visible if re.match(numbered, visible) else tooltip or visible or ('회차 ' + num)
+            if not re.search(r'\d+(?:\.\d+)?\s*[화회]', label) and re.search(r'\d+(?:\.\d+)?\s*[화회]', visible):
+                label = visible
+            no = re.match(numbered, label)
+            row_number = None
+            parent = a.parent
+            while parent and parent.tag not in ('tr', 'li'):
+                parent = parent.parent
+            if parent:
+                row_ids = {link_id(urljoin(url, node.attrs.get('href', '')), 'num') for node in parent.walk('a')}
+                row_ids.discard('')
+                cells = [node for node in parent.children if node.tag in ('td', 'th')]
+                if row_ids == {num} and cells and re.fullmatch(r'\d+(?:\.\d+)?', cells[0].text()):
+                    row_number = float(cells[0].text())
             if not no:
                 no = re.search(r'(\d+(?:\.\d+)?)\s*[화회]', label)
-            candidate = {'id': num, 'title': label, 'no': float(no.group(1)) if no else int(num)}
+            candidate = {'id': num, 'title': label, 'no': row_number if row_number is not None else float(no.group(1)) if no else int(num)}
             if num not in episodes or (re.search(r'\d+\s*[화회]', label) and not re.search(r'\d+\s*[화회]', episodes[num]['title'])):
                 episodes[num] = candidate
         elif urlsplit(href).path.rstrip('/').endswith('/list') and any(k in parse_qs(urlsplit(href).query) for k in ('page', 'pg')):
@@ -362,3 +380,4 @@ def image_extension(data):
     if data.startswith(b'RIFF') and data[8:12] == b'WEBP': return '.webp'
     if data[4:8] == b'ftyp' and data[8:12] in (b'avif', b'avis'): return '.avif'
     return ''
+
