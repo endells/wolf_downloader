@@ -840,7 +840,7 @@ class Engine:
             work = None
             try:
                 work = self.client.work(wid)
-                self.history.remember_work(wid, work['title'])
+                self.history.remember_work(wid, work['title'], recent=(mode in ('analyze', 'download')))
                 folder = self.work_dir(work, migrate=(mode == 'reconcile'))
                 if len(work['episodes']) > 10000:
                     raise WolfError('회차 수 한도(10000)를 초과했습니다.')
