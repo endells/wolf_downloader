@@ -804,6 +804,13 @@ class Engine:
             self.status(message='기존 완료 회차 ZIP 변환 중')
 
     def run(self):
+        original = self.config
+        try:
+            return self._run()
+        finally:
+            self.config = original
+
+    def _run(self):
         started = time.monotonic()
         mode = self.job['mode']
         if mode == 'notify_test':
@@ -817,6 +824,13 @@ class Engine:
             return
         if mode in ('download', 'reconcile'):
             self.cleanup_duplicates()
+            original = self.config
+            if original.get('separate_path'):
+                try:
+                    self.config = dict(original, download_path=original['separate_path'], titles=original.get('separate_titles', ''))
+                    self.cleanup_duplicates()
+                finally:
+                    self.config = original
         domain = self.connect(force=(mode == 'resolve'))
         if mode == 'resolve':
             self.result(base_url=domain)
@@ -830,10 +844,18 @@ class Engine:
             self.status(status='done', message='목록 조회 완료')
             return
         maintenance = mode in ('reconcile', 'metadata', 'compress')
-        ids = title_ids(self.config['titles']) if maintenance else ([self.args['work_id']] if self.args.get('work_id') else title_ids(self.config['titles']))
+        original = self.config
+        separate_ids = title_ids(original.get('separate_titles', ''))
+        all_ids = list(dict.fromkeys(title_ids(original['titles']) + separate_ids))
+        ids = all_ids if maintenance else ([self.args['work_id']] if self.args.get('work_id') else all_ids)
         if not ids:
             raise WolfError('자동 수집 작품 목록이 비어 있습니다.')
         for wid in ids:
+            separate = (self.args.get('separate', wid in separate_ids) if self.args.get('work_id') and not maintenance else wid in separate_ids)
+            self.config = dict(original, download_path=original.get('separate_path', '') if separate else original['download_path'],
+                               titles=original.get('separate_titles', '') if separate else original['titles'])
+            if not self.config['download_path']:
+                raise WolfError('설정에서 별도 저장 경로를 먼저 저장하세요.')
             self.client.check()
             self.status(message='작품 분석 중: ' + wid)
             downloaded = []
@@ -845,6 +867,7 @@ class Engine:
                 if len(work['episodes']) > 10000:
                     raise WolfError('회차 수 한도(10000)를 초과했습니다.')
                 if mode == 'analyze':
+                    work['separate'] = bool(separate)
                     for ep in work['episodes']:
                         ep['completed'] = self.complete(self.history.get(wid, ep['id']))
                     self.result(work=work)
@@ -906,4 +929,5 @@ class Engine:
             self.notify('download', '늑대 다운로더: {}회차 완료 / {}건 실패'.format(self.state['completed'], self.state['failed']))
         if mode == 'reconcile':
             self.notify('download', '늑대 다운로더 기존 파일 이력 반영 완료\n대상 작품: {}개\n이력 반영: {}회차\n실패: {}건 / 경고: {}건\n손상 파일 복구: {}회차\n소요 시간: {:.1f}초'.format(len(ids), self.state['completed'], self.state['failed'], self.state.get('warning_count', 0), self.state.get('repaired', 0), time.monotonic() - started))
+
 
