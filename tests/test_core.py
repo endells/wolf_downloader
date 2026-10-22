@@ -838,6 +838,42 @@ class CoreTests(unittest.TestCase):
         self.conf['download_path'] = str(self.root / 'elsewhere')
         self.assertFalse(self.engine.complete(record))
 
+    def test_auto_routes_both_lists_to_distinct_roots(self):
+        self.conf.update(separate_path=str(self.root / 'separate'), separate_titles='43')
+        self.engine.run()
+        for wid, root in [('42', self.root / 'downloads'), ('43', self.root / 'separate')]:
+            record = self.engine.history.get(wid, '3')
+            self.assertEqual(record['status'], 'completed')
+            self.assertIn(root, Path(record['path']).parents)
+            self.assertTrue(Path(record['path']).exists())
+        self.assertIs(self.engine.config, self.conf)
+
+    def test_manual_separate_root_does_not_reuse_default_history(self):
+        self.engine.run()
+        default = Path(self.engine.history.get('42', '3')['path'])
+        self.conf['separate_path'] = str(self.root / 'separate')
+        self.job['args'].update(work_id='42', separate=True, selected=['3'])
+        self.engine.run()
+        path = Path(self.engine.history.get('42', '3')['path'])
+        self.assertIn(self.root / 'separate', path.parents)
+        self.assertTrue(default.exists())
+        self.assertTrue(path.exists())
+
+    def test_maintenance_routes_both_lists(self):
+        self.conf.update(separate_path=str(self.root / 'separate'), separate_titles='43')
+        self.job['mode'] = 'reconcile'
+        seen = []
+        with patch.object(self.engine, 'reconcile', side_effect=lambda work, folder: seen.append((work['id'], folder.parent))):
+            self.engine.run()
+        self.assertEqual(seen, [('42', self.root / 'downloads'), ('43', self.root / 'separate')])
+
+    def test_separate_config_validation(self):
+        for changes in [dict(separate_titles='43'), dict(separate_path='relative'),
+                        dict(separate_path=self.conf['download_path']),
+                        dict(separate_path=str(self.root / 'separate'), separate_titles='42')]:
+            with self.subTest(changes=changes), self.assertRaises(WolfError):
+                validate(dict(self.conf, **changes))
+
     def test_existing_unmanaged_folder_preserved(self):
         work = self.client.work('42')
         target = self.engine.work_dir(work) / self.engine.episode_name(work['episodes'][-1])
@@ -1054,4 +1090,5 @@ class ProcessTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
 
