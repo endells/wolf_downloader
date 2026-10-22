@@ -124,10 +124,9 @@ def parse_work(html, url, work_id):
                 cells = [node for node in parent.children if node.tag in ('td', 'th')]
                 if row_ids == {num} and cells and re.fullmatch(r'\d+(?:\.\d+)?', cells[0].text()):
                     row_number = float(cells[0].text())
-            if not no:
-                no = re.search(r'(\d+(?:\.\d+)?)\s*[화회]', label)
-            candidate = {'id': num, 'title': label, 'no': row_number if row_number is not None else float(no.group(1)) if no else int(num)}
-            if num not in episodes or (re.search(r'\d+\s*[화회]', label) and not re.search(r'\d+\s*[화회]', episodes[num]['title'])):
+            candidate = {'id': num, 'title': label, 'no': row_number if row_number is not None else float(no.group(1)) if no else None}
+            if (num not in episodes or (candidate['no'] is not None and episodes[num]['no'] is None)
+                    or (candidate['no'] is not None and re.search(r'\d+\s*[화회]', label) and not re.search(r'\d+\s*[화회]', episodes[num]['title']))):
                 episodes[num] = candidate
         elif urlsplit(href).path.rstrip('/').endswith('/list') and any(k in parse_qs(urlsplit(href).query) for k in ('page', 'pg')):
             pages.add(href)
@@ -338,6 +337,8 @@ class Client:
             raise WolfError('회차 목록이 없습니다. 작품 번호/사이트 구조/도메인을 확인하세요.')
         if not work['title']:
             raise WolfError('작품명을 확인하지 못했습니다. 사이트명으로 폴더를 만들지 않았습니다. 작품 상세 페이지 HTML 확인이 필요합니다.')
+        if any(e['no'] is None for e in episodes.values()):
+            raise WolfError('목록 순번을 확인하지 못한 회차가 있습니다. 제목 화수로 대체하지 않습니다. 작품 목록 HTML 확인이 필요합니다.')
         work['episodes'] = sorted(episodes.values(), key=lambda x: (x['no'], int(x['id'])))
         return work
 
