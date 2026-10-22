@@ -1,6 +1,6 @@
 package_name: wolf_downloader
 title: 늑대 다운로더
 description: 독립 프로세스 기반 수동·자동 수집 및 도메인 자동 갱신
-version: 0.1.17
+version: 0.1.18
 developer: endells
 
