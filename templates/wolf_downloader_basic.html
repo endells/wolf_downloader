@@ -83,7 +83,7 @@
 .wd small,.wd-meta{opacity:1}.wd h3 small{display:inline-block;margin-left:8px;color:#b8c9df!important}.wd .wd-card{background:#182335;border-color:#435674}.wd .btn-primary,.wd .wd-settings-tabs button.active{background:#285fa8!important;border-color:#7db4ff!important}.wd .btn-success{background:#19685a!important;border-color:#6acbb3!important}.wd .btn-outline-danger{border-color:#c37a89!important;color:#ffc1cb!important}.wd .wd-file-intro,.wd .wd-file-guide{background:#182f49;color:#e8eff9;border-color:#526e91}.wd .wd-file-intro strong,.wd .wd-file-guide h4{color:#aad2ff!important}.wd .wd-file-caution{background:#30291e;color:#f8dba5;border-color:#826638}.wd code{background:#0e1726;color:#b9dcff}.wd .wd-file-guide p{color:inherit}.wd .wd-bar>div{background:#71b7ff}.wd #add-title{flex:1;min-width:180px;width:auto}.wd .wd-title-actions{display:flex;gap:6px;flex-wrap:wrap}.wd .wd-scroll{margin-top:12px}.wd #wd-message{color:#e1edff}.wd #wd-message.wd-error-message{color:#ffb3bd}.wd a.btn{background:#293d58;border:1px solid #6984a7;color:#f0f5ff!important}.wd input[type=number]{box-sizing:border-box}.wd .wd-path input{min-width:0}.wd .wd-path button{flex-shrink:0}
 </style>
 <div class="wd">
-<h3>늑대 다운로더 <small>0.1.21 · 독립 작업 프로세스</small></h3>
+<h3>늑대 다운로더 <small>0.1.22 · 독립 작업 프로세스</small></h3>
 <div class="wd-status" aria-live="polite">
  <div class="wd-line"><strong>작업 상태</strong><span id="state" class="wd-grow">확인 중…</span><button id="stop" class="btn btn-sm btn-outline-danger">중지</button></div>
  <div class="wd-meta"><span id="counts">회차 0 / 0</span><span id="pages">이미지 0 / 0</span><span id="schedule"></span><span id="domain"></span></div>
@@ -108,6 +108,12 @@
 <div class="wd-actions"><input id="add-title" type="text" placeholder="추가할 작품 주소 또는 번호" aria-label="추가할 작품 주소 또는 번호"><button id="register-title" class="btn btn-primary">작품 추가</button><button id="refresh-titles" class="btn">목록 새로고침</button></div>
 <small>추가해도 즉시 다운로드하지 않습니다. 아래 표는 저장된 목록입니다. 저장 회차는 완료 이력 기준이며, 작품명은 작품 목록 조회·회차 분석·수집 후 표시됩니다.</small>
 <div class="wd-scroll"><table><thead><tr><th>작품</th><th>저장 회차</th><th>관리</th></tr></thead><tbody id="title-list"></tbody></table></div>
+<label for="separate_path">별도 저장 경로 (성인·기타 작품)</label><div class="wd-path"><input id="separate_path" type="text" value="{{ config.separate_path }}" placeholder="예: /library/comics-separate"><button id="separate-path" class="btn">경로 선택</button></div>
+<small>기본 경로와 다른 폴더를 지정하세요. 기존 파일은 이동하지 않으며 이후 다운로드부터 적용됩니다.</small>
+<label for="separate_titles">별도 폴더 자동 수집 작품 목록</label><textarea id="separate_titles" rows="4">{{ config.separate_titles }}</textarea>
+<div class="wd-actions"><input id="separate-add-title" type="text" placeholder="별도 폴더에 받을 작품 주소 또는 번호" aria-label="별도 작품 추가"><button id="separate-register-title" class="btn btn-primary">별도 작품 추가</button><button id="separate-refresh-titles" class="btn">목록 새로고침</button></div>
+<small>별도 경로를 먼저 저장하세요. 같은 작품을 추가하면 반대 목록에서 제외합니다. 예약 수집과 ‘저장된 목록 지금 받기’는 두 목록을 각 경로로 받습니다.</small>
+<div class="wd-scroll"><table><thead><tr><th>별도 폴더 작품</th><th>저장 회차</th><th>관리</th></tr></thead><tbody id="separate-title-list"></tbody></table></div>
 <div class="wd-grid">
  <div><label for="max_per_run">자동 수집: 작품당 최대 회차</label><input id="max_per_run" type="number" min="0" max="10000" value="{{ config.max_per_run }}"><small>0 = 미완료 전체 · 최신 회차 우선. 수동 선택에는 이 제한을 적용하지 않습니다.</small></div>
  <div><label for="episode_digits">회차 번호 자릿수</label><input id="episode_digits" type="number" min="1" max="10" value="{{ config.episode_digits }}"><small>3자리: 001 · 4자리: 0001. 기존 파일 이름은 변경하지 않습니다.</small></div>
@@ -160,6 +166,9 @@
 </div>
 {% elif page == 'manual' %}
 <div class="wd-panel"><label for="work_url">작품 URL / 번호</label><input id="work_url" type="text" placeholder="https://현재주소/list?toon=4461 또는 작품번호">
+<label class="wd-check"><input id="manual-separate" class="job" type="checkbox"> 별도 폴더 사용 (성인·기타 작품)</label>
+<small>체크하면 별도 경로로 분석·다운로드하며, ‘자동 수집 추가’도 별도 목록에 등록합니다.</small>
+<small>별도 저장 경로: {{ config.separate_path or '설정에서 먼저 지정하세요.' }}</small>
 <small>최근 작업한 작품 · 선택하면 번호만 입력됩니다.</small>
 <div id="recent-works" class="wd-actions" aria-label="최근 작업한 작품 5개"></div>
 <div class="wd-actions"><button id="analyze" class="btn btn-primary job">회차 분석</button><button id="add_auto" class="btn btn-outline-primary">자동 수집 추가</button><button id="download" class="btn btn-success job" disabled>선택 회차 다운로드</button></div>
@@ -183,7 +192,7 @@ const text=(id,v)=>{if($id(id))$id(id).textContent=v;};
 let active=false,work=null,selected=new Set(),epPage=1,catPage=1,catLast=1,searching=false,histPage=1,histMore=false,resultId='',pollTimer=null,polling=false,alive=true;
 function message(s,error=false){text('wd-message',s);$id('wd-message').classList.toggle('wd-error-message',error);}
 async function call(command,arg1='',arg2=''){
- const body=new URLSearchParams({command,arg1:typeof arg1==='string'?arg1:JSON.stringify(arg1),arg2:typeof arg2==='string'?arg2:JSON.stringify(arg2),csrf_token:csrf});
+ const body=new URLSearchParams({command,arg1:typeof arg1==='string'?arg1:JSON.stringify(arg1),arg2:typeof arg2==='string'?arg2:JSON.stringify(arg2),csrf_token:csrf,separate:page==='manual'&&$id('manual-separate').checked?'true':'false'});
  const response=await fetch('/'+pkg+'/ajax/basic/command',{method:'POST',body,credentials:'same-origin'});
  if(!response.ok)throw new Error('서버 응답 오류 '+response.status+' — 페이지를 새로고침하세요.');
  const data=await response.json();if(data.ret!=='success')throw new Error(data.msg||'처리 실패');return data;
@@ -202,7 +211,7 @@ async function poll(){
  }catch(e){message(e.message,true);}finally{polling=false;if(alive)pollTimer=setTimeout(poll,active?2000:5000);}
 }
 function showResult(r){
- if(page==='manual'&&r.work){work=r.work;selected=new Set(work.episodes.filter(e=>!e.completed).map(e=>e.id));epPage=1;text('work_title',work.title);$id('work_url').value=work.id;renderEpisodes();}
+ if(page==='manual'&&r.work){work=r.work;$id('manual-separate').checked=work.separate===true;selected=new Set(work.episodes.filter(e=>!e.completed).map(e=>e.id));epPage=1;text('work_title',work.title);$id('work_url').value=work.id;renderEpisodes();}
  if(page==='browse'&&r.catalog){catPage=r.catalog.page;catLast=r.catalog.last_page;const box=$id('catalog');box.replaceChildren();r.catalog.rows.forEach(row=>{const card=document.createElement('div');card.className='wd-card';const title=document.createElement('strong');title.textContent=row.title;card.append(title);const actions=document.createElement('div');actions.className='wd-actions';const a=document.createElement('a');a.className='btn btn-sm btn-primary';a.textContent='회차 선택';a.href='/'+pkg+'/basic/manual?toon='+encodeURIComponent(row.id);const b=document.createElement('button');b.className='btn btn-sm btn-outline-secondary';b.textContent='자동 수집 추가';b.onclick=()=>call('add_auto',row.id).then(x=>message(x.msg)).catch(e=>message(e.message,true));actions.append(a,b);card.append(actions);box.append(card);});if(!r.catalog.rows.length)box.textContent='결과가 없습니다. 도메인 또는 검색 경로를 확인하세요.';text('cat_page',catPage+' / '+catLast);}
  updateButtons();
 }
@@ -239,28 +248,38 @@ async function recentWorks(){
  if(!r.rows.length){const empty=document.createElement('small');empty.textContent='최근 작업한 작품이 없습니다. 회차 분석 또는 다운로드 후 표시됩니다.';box.append(empty);}
  updateButtons();
 }
-async function titles(){
- const r=await call('titles'),box=$id('title-list');box.replaceChildren();
+async function titles(){await Promise.all([titleGroup(false),titleGroup(true)]);}
+async function titleGroup(separate){
+ const prefix=separate?'separate-':'',key=separate?'separate_titles':'titles';
+ const r=await call('titles',separate?'separate':''),box=$id(prefix+'title-list');box.replaceChildren();
  for(const row of r.rows){
   const tr=document.createElement('tr');
   for(const value of [row.title+' ['+row.id+']',row.completed]){const td=document.createElement('td');td.textContent=value;tr.append(td);}
   const td=document.createElement('td'),actions=document.createElement('div');actions.className='wd-title-actions';
   for(const [label,command] of [['지금 받기','run_title'],['목록에서 제외','remove_auto']]){
    const b=document.createElement('button');b.textContent=label;b.className='btn'+(command==='run_title'?' job':'');
-   b.onclick=async()=>{b.disabled=true;try{if(command==='run_title')await start(command,row.id);else{const r=await call(command,row.id);$id('titles').value=$id('titles').value.split(/[\n|]/).filter(line=>!matchesWork(line,row.id)).join('\n');message(r.msg);await titles();}}catch(e){message(e.message,true);}finally{b.disabled=false;updateButtons();}};actions.append(b);
+   b.onclick=async()=>{b.disabled=true;try{if(command==='run_title')await start(command,row.id);else{const r=await call(command,row.id,separate?'separate':'');$id(key).value=$id(key).value.split(/[\n|]/).filter(line=>!matchesWork(line,row.id)).join('\n');message(r.msg);await titles();}}catch(e){message(e.message,true);}finally{b.disabled=false;updateButtons();}};actions.append(b);
   }
-  const a=document.createElement('a');a.textContent='회차 분석';a.className='btn';a.href='/'+pkg+'/basic/manual?toon='+encodeURIComponent(row.id);actions.append(a);td.append(actions);tr.append(td);box.append(tr);
+  const a=document.createElement('a');a.textContent='회차 분석';a.className='btn';a.href='/'+pkg+'/basic/manual?toon='+encodeURIComponent(row.id)+(separate?'&separate=1':'');actions.append(a);td.append(actions);tr.append(td);box.append(tr);
  }
  if(!r.rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=3;td.textContent='등록된 작품이 없습니다. 작품 번호 또는 주소를 추가하세요.';tr.append(td);box.append(tr);}
  updateButtons();
 }
 function matchesWork(line,id){line=line.trim();try{const value=/^\d+$/.test(line)?line:new URL(line).searchParams.get('toon');return /^\d+$/.test(value||'')&&BigInt(value)===BigInt(id);}catch(e){return false;}}
-bind('refresh-titles',titles);
-bind('register-title',async()=>{
- const r=await call('add_auto',$id('add-title').value),saved=await call('titles');
- const lines=$id('titles').value.split(/[\n|]/);for(const row of saved.rows){if(!lines.some(line=>matchesWork(line,row.id)))lines.push(row.id);}
- $id('titles').value=lines.filter(x=>x.trim()).join('\n');$id('add-title').value='';message(r.msg);await titles();
-});
+for(const separate of [false,true]){
+ const prefix=separate?'separate-':'',key=separate?'separate_titles':'titles',other=separate?'titles':'separate_titles';
+ bind(prefix+'refresh-titles',titles);
+ bind(prefix+'register-title',async()=>{
+  const input=$id(prefix+'add-title'),value=input.value;
+  const r=await call('add_auto',value,separate?'separate':''),saved=await call('titles',separate?'separate':'');
+  const lines=$id(key).value.split(/[\n|]/);
+  for(const row of saved.rows){if(!lines.some(line=>matchesWork(line,row.id)))lines.push(row.id);}
+  $id(key).value=lines.filter(x=>x.trim()).join('\n');
+  let wid;try{wid=/^\d+$/.test(value.trim())?String(BigInt(value.trim())):String(BigInt(new URL(value).searchParams.get('toon')));}catch(e){}
+  if(wid)$id(other).value=$id(other).value.split(/[\n|]/).filter(line=>!matchesWork(line,wid)).join('\n');
+  input.value='';message(r.msg);await titles();
+ });
+}
 if(page==='setting')titles().catch(e=>message(e.message,true));
 bind('stop',async()=>{message((await call('stop')).msg);});
 async function saveSettings(){const c={};{% for key in config %}if($id({{ key|tojson }}))c[{{ key|tojson }}]=$id({{ key|tojson }}).type==='checkbox'?$id({{ key|tojson }}).checked:$id({{ key|tojson }}).value;{% endfor %}
@@ -270,7 +289,9 @@ bind('path',async()=>{const r=await call('browse_path',$id('download_path').valu
 document.querySelectorAll('.wd [data-command]').forEach(b=>b.onclick=()=>start(b.dataset.command).catch(e=>message(e.message,true)));
 document.querySelectorAll('.wd .notify').forEach(b=>b.onclick=()=>start('notify_test',b.dataset.kind).catch(e=>message(e.message,true)));
 bind('compress',()=>{if(confirm('이 플러그인의 완료 회차 폴더를 ZIP으로 변환하고, ZIP 검증 후 해당 원본 회차 폴더를 삭제합니다. 진행할까요?'))return start('compress');});
-bind('analyze',()=>start('analyze',$id('work_url').value));bind('add_auto',async()=>{message((await call('add_auto',$id('work_url').value)).msg);});
+bind('separate-path',async()=>{const r=await call('browse_path',$id('separate_path').value||$id('download_path').value);if(typeof globalSelectLocalFolder!=='function')throw new Error('경로를 직접 입력하세요.');globalSelectLocalFolder('별도 저장 경로',r.path,result=>{$id('separate_path').value=result;});});
+bind('manual-separate',()=>{work=null;selected=new Set();$id('episodes').replaceChildren();text('work_title','');text('selection','');text('ep_page','');$id('select_all').checked=false;updateButtons();message('저장 경로가 바뀌었습니다. 회차를 다시 분석하세요.');});
+bind('analyze',()=>start('analyze',$id('work_url').value));bind('add_auto',async()=>{message((await call('add_auto',$id('work_url').value,$id('manual-separate').checked?'separate':'')).msg);});
 bind('download',()=>{if(!work||!selected.size)return;return start('download',work.id,Array.from(selected));});
 bind('select_all',()=>{if(work){selected=$id('select_all').checked?new Set(work.episodes.map(e=>e.id)):new Set();renderEpisodes();}});
 bind('incomplete',()=>{if(work){selected=new Set(work.episodes.filter(e=>!e.completed).map(e=>e.id));renderEpisodes();}});
@@ -281,10 +302,11 @@ bind('search',()=>{searching=true;return browse(1);});bind('browse',()=>{searchi
 async function history(){const r=await call('history',{page:histPage,query:$id('history_query').value,status:$id('history_status').value});histMore=r.more;const box=$id('history');box.replaceChildren();r.rows.forEach(row=>{const tr=document.createElement('tr');[row.work_title+' / '+row.title,row.status,row.error||(row.status==='downloading'?'임시 저장: '+(row.path||'준비 중'):row.path),row.updated].forEach(v=>{const td=document.createElement('td');td.textContent=v||'';tr.append(td);});box.append(tr);});text('hist_page',histPage+' 페이지');}
 bind('history_refresh',()=>{histPage=1;return history();});bind('hist_prev',()=>{histPage=Math.max(1,histPage-1);return history();});bind('hist_next',()=>{if(histMore)histPage++;return history();});
 if(page==='history')history().catch(e=>message(e.message,true));
-if(page==='manual'){recentWorks().catch(e=>message(e.message,true));const id=new URLSearchParams(location.search).get('toon');if(id&&/^\d+$/.test(id))$id('work_url').value=id;}
+if(page==='manual'){$id('manual-separate').checked=new URLSearchParams(location.search).get('separate')==='1';recentWorks().catch(e=>message(e.message,true));const id=new URLSearchParams(location.search).get('toon');if(id&&/^\d+$/.test(id))$id('work_url').value=id;}
 poll();
 window.addEventListener('pagehide',()=>{alive=false;clearTimeout(pollTimer);});
 })();
 </script>
 {% endblock %}
+
 
