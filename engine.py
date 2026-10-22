@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from xml.etree import ElementTree as ET
 
-from client import Client, parse_images, image_extension, clean_work_title
+from client import Client, parse_images, image_extension, clean_work_title, strip_episode_badges
 from common import WolfError, Blocked, Cancelled, atomic_bytes, inside, read_json, safe_name, title_ids, write_json, write_log
 from domains import resolve, verify
 from history import History
@@ -161,12 +161,12 @@ class Engine:
         return '{}_{}'.format(number, self.clean_episode_title(ep['title'], no))
 
     def clean_episode_title(self, title, number):
-        title = str(title).strip()
+        title = strip_episode_badges(title)
         for _ in range(3):
             title = re.sub(r'\s*(?:\[\d+\]|#\s*\d+|\d{4}[-./]\d{2}[-./]\d{2})\s*$', '', title).strip()
         leading = re.match(r'^(\d+(?:\.\d+)?)[\s_]+(.+)$', title)
         if leading and float(leading.group(1)) == float(number):
-            title = leading.group(2).strip()
+            title = strip_episode_badges(leading.group(2))
         return safe_name(title or '회차')
 
     def archive_name(self, ep, pages):
@@ -562,6 +562,34 @@ class Engine:
             return
         if not folder.is_dir():
             return
+        # Repair legacy badge-prefixed names using the full title, including season.
+        by_title = {}
+        for episode in work['episodes']:
+            key = self.clean_episode_title(episode['title'], episode['no'])
+            by_title.setdefault(key, []).append(episode)
+        for path in list(folder.iterdir()):
+            if path.is_symlink() or not path.is_file() or path.suffix.lower() not in ('.zip', '.cbz'):
+                continue
+            match = re.match(r'^(\d+(?:\.\d+)?)_(.+)$', path.stem)
+            if not match or strip_episode_badges(match[2]) == match[2]:
+                continue
+            matches = by_title.get(self.clean_episode_title(match[2], float(match[1])), [])
+            if len(matches) != 1:
+                self.warn(path.name + ': 배지 파일의 회차를 유일하게 확인할 수 없어 이름 유지')
+                continue
+            try:
+                pages = self.archive_page_count(path)
+                target = inside(folder, self.archive_name(matches[0], pages))
+                if target != path and not target.exists():
+                    self.client.check()
+                    path.rename(target)
+                    self.log('INFO', '기존 배지 파일명 수정: {} → {}'.format(path.name, target.name))
+                elif target != path:
+                    self.warn(path.name + ': 교정할 파일명이 이미 있어 기존 파일 유지')
+            except (Cancelled, Blocked):
+                raise
+            except (zipfile.BadZipFile, WolfError, OSError):
+                self.warn(path.name + ': 배지 파일 확인 실패로 이름 유지')
         cache_path = self.directory / ('reconcile-cache-' + str(work['id']) + '.json')
         cache = read_json(cache_path, {})
         context = ['fast-v2', self.client.base, self.config.get('domain_family'), self.config.get('viewer_selector'), self.config['episode_digits']]
@@ -855,3 +883,4 @@ class Engine:
             self.notify('download', '늑대 다운로더: {}회차 완료 / {}건 실패'.format(self.state['completed'], self.state['failed']))
         if mode == 'reconcile':
             self.notify('download', '늑대 다운로더 기존 파일 이력 반영 완료\n대상 작품: {}개\n이력 반영: {}회차\n실패: {}건 / 경고: {}건\n손상 파일 복구: {}회차\n소요 시간: {:.1f}초'.format(len(ids), self.state['completed'], self.state['failed'], self.state.get('warning_count', 0), self.state.get('repaired', 0), time.monotonic() - started))
+
