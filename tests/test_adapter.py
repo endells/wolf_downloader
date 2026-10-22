@@ -123,6 +123,30 @@ class AdapterTests(unittest.TestCase):
         mode,conf,args=self.module.manager.start.call_args.args
         self.assertEqual(mode,'download');self.assertEqual(args['selected'],['1','2','3'])
 
+    def test_registered_titles_and_remove_keep_history(self):
+        from wolf_downloader.history import History
+        h = History(self.module.data_dir() / 'history.db')
+        h.save('42', '1', work_title='기존 작품', status='completed')
+        h.save('42', '2', work_title='기존 작품', status='failed')
+        h.remember_work('43', '분석된 작품')
+        self.settings['titles'] = '42\n43\n44'
+        rows = self.call('titles')['rows']
+        self.assertEqual([r['title'] for r in rows], ['기존 작품', '분석된 작품', '작품명 확인 전'])
+        self.assertEqual([r['completed'] for r in rows], [1, 0, 0])
+        self.assertEqual(self.call('remove_auto', '42')['ret'], 'success')
+        self.assertEqual(self.settings['titles'], '43\n44')
+        self.assertEqual(h.get('42', '1')['status'], 'completed')
+        self.module.manager.start.assert_not_called()
+
+    def test_run_registered_title_only(self):
+        self.settings['titles'] = '42\n43'
+        self.assertEqual(self.call('run_title', '44')['ret'], 'error')
+        self.module.manager.start.assert_not_called()
+        self.assertEqual(self.call('run_title', '43')['ret'], 'success')
+        mode, conf, args = self.module.manager.start.call_args.args
+        self.assertEqual((mode, args), ('download', {'work_id': '43'}))
+        self.assertNotIn('selected', args)
+
     def test_csrf_required(self):
         r=self.client.post('/wolf_downloader/ajax/basic/command',data={'command':'run'})
         self.assertEqual(r.status_code,403);self.module.manager.start.assert_not_called()
@@ -144,3 +168,4 @@ class AdapterTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
