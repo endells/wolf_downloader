@@ -21,9 +21,69 @@
 .wd .wd-file-guide.wd-file-caution{background:#fff7e6;border-color:#e3bd70;color:#593c12}
 .wd .wd-file-caution h4{color:#754710}
 @media(max-width:640px){.wd .wd-file-btn{width:100%;text-align:center}.wd .wd-file-intro,.wd .wd-file-guide{padding:12px}}
+/* Scoped dark palette; explicitly color cells to override inherited FF skin colors. */
+.wd{--wd-bg:#101827;--wd-surface:#182335;--wd-input:#0e1726;--wd-border:#435674;--wd-text:#e8eff9;--wd-muted:#b8c9df;max-width:1150px;margin:14px auto;padding:18px;background:var(--wd-bg);color:var(--wd-text)!important;border:1px solid #34465f;border-radius:12px;color-scheme:dark;line-height:1.6}
+.wd h3{font-size:22px;margin:0 0 14px;color:#f3f7ff!important}
+.wd label,.wd strong,.wd #book-title,.wd #selection{color:#e8eff9!important}
+.wd small{display:block;color:var(--wd-muted)!important;line-height:1.6;margin-top:5px}
+.wd-panel{padding:18px;margin:14px 0;background:var(--wd-surface)!important;color:var(--wd-text)!important;border:1px solid var(--wd-border);border-radius:10px}
+.wd-status{padding:10px 14px;border:1px solid #4776aa;border-left:5px solid #6fb4ff;border-radius:8px;background:#162e4a!important;color:#edf5ff!important;font-size:13px}
+.wd-line{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.wd-state{flex:1;min-width:200px;overflow-wrap:anywhere;color:#edf5ff!important}
+.wd input[type=password],.wd input[type=text],.wd input[type=number],.wd textarea{border:1px solid #60799a!important;border-radius:5px;padding:8px;width:100%;background:var(--wd-input)!important;color:#f0f5ff!important;caret-color:#91c6ff}
+.wd input::placeholder,.wd textarea::placeholder{color:#a4b7cf!important;opacity:1}
+.wd select{display:block;width:100%;height:auto;padding:8px;border:1px solid #60799a!important;border-radius:5px;background:var(--wd-input)!important;color:#f0f5ff!important}
+.wd input[type=checkbox]{accent-color:#69b3ff;cursor:pointer;width:16px;height:16px;vertical-align:middle}
+.wd input[type=checkbox]:disabled{cursor:not-allowed;opacity:.65}
+.wd input:focus,.wd textarea:focus,.wd button:focus-visible{outline:2px solid #91c6ff!important;outline-offset:2px}
+.wd label{display:block;margin:12px 0 5px;font-weight:600}
+.wd-check{font-weight:400!important}
+.wd-check input{margin-right:7px}
+.wd #files-folders{padding:6px 12px;box-sizing:border-box}
+.wd #files-folders .wd-check{display:flex!important;align-items:center;gap:8px;margin:0!important;padding:7px 0;cursor:pointer}
+.wd #files-folders .wd-check input,.wd #files-all{position:static!important;float:none!important;flex:0 0 16px;margin:0!important;width:16px!important;height:16px!important}
+.wd #files-folders .wd-check span{min-width:0;overflow-wrap:anywhere}
+.wd .wd-actions label:has(#files-all){display:inline-flex!important;align-items:center;gap:8px;margin:0!important}
+.wd-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+.wd-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+.wd button{border:1px solid #6984a7!important;border-radius:5px;padding:7px 12px;background:#293d58!important;color:#f0f5ff!important;font-weight:600;transition:background .12s,border-color .12s}
+.wd button:hover:not(:disabled){background:#365477!important;border-color:#a1cfff!important}
+.wd button.primary{background:#285fa8!important;color:#fff!important;border-color:#7db4ff!important}
+.wd button.primary:hover:not(:disabled){background:#3477c8!important}
+.wd button:disabled{background:#202e42!important;color:#a8b9ce!important;border-color:#495d77!important;opacity:.8;cursor:not-allowed}
+.wd-note{background:#30291e!important;color:#f8dba5!important;border:1px solid #826638;border-left:4px solid #e5b860;padding:12px;border-radius:6px;line-height:1.7}
+.wd .wd-warning{color:#ffb3bd!important;white-space:pre-wrap;overflow-wrap:anywhere}
+.wd .wd-warning:not(:empty){background:#3d202d;border:1px solid #965566;border-radius:5px;padding:7px 9px;margin-top:7px}
+.wd .wd-scroll{max-height:560px;overflow:auto;border:1px solid #526885;border-radius:7px;background:#172235;scrollbar-color:#718aa9 #172235}
+.wd .wd-scroll table{width:100%;border-collapse:collapse;background:#172235!important;color:var(--wd-text)!important;margin:0!important}
+.wd .wd-scroll table th,.wd .wd-scroll table td{padding:9px 10px;border-bottom:1px solid #40526d!important;text-align:left;word-break:break-word;color:#e8eff9!important;background:#172235!important}
+.wd .wd-scroll table th{background:#304561!important;color:#f5f8ff!important;position:sticky;top:0;z-index:1;font-weight:700}
+.wd .wd-scroll table tbody tr:nth-child(even) td{background:#1e2d43!important}
+.wd .wd-scroll table tbody tr:hover td{background:#2b405b!important}
+.wd .wd-scroll table tbody tr:has(input:checked) td{background:#294c73!important;color:#fff!important}
+.wd #episodes td:first-child,.wd #episodes th:first-child{width:55px;text-align:center}
+.wd #episodes td:nth-child(2),.wd #episodes th:nth-child(2){width:70px;font-variant-numeric:tabular-nums}
+.wd #episodes td:last-child,.wd #episodes th:last-child{min-width:130px}
+.wd progress{width:100%;height:7px;display:block;margin-top:6px;border:0;border-radius:4px;overflow:hidden;background:#314760;accent-color:#71b7ff}
+.wd progress::-webkit-progress-bar{background:#314760}
+.wd progress::-webkit-progress-value{background:#71b7ff}
+.wd progress::-moz-progress-bar{background:#71b7ff}
+.wd-msg{color:#e1edff!important;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;margin:8px 0}
+.wd #counts{color:#c1d5ef!important;font-size:12px}
+.wd #domain-change{color:#a0e3ce!important;overflow-wrap:anywhere}
+.wd .badge{font-size:11px;color:#d9ebff!important;background:#29466c!important;padding:3px 7px;border:1px solid #5c88bd;vertical-align:middle}
+.wd a{color:#9bcaff!important}
+.wd .range{width:95px!important}
+.wd #verification-link{display:flex;align-items:center;gap:8px;margin-top:8px}
+.wd #verification-url{flex:1;min-width:0;font-size:13px}
+.wd #copy-verification-url{flex-shrink:0}
+.wd [hidden]{display:none!important}
+@media(max-width:650px){.wd-grid{grid-template-columns:1fr}.wd-panel{padding:12px}.wd{padding:12px 8px}.wd .wd-scroll table td,.wd .wd-scroll table th{padding:7px;font-size:12px}}
+
+.wd small,.wd-meta{opacity:1}.wd h3 small{display:inline-block;margin-left:8px;color:#b8c9df!important}.wd .wd-card{background:#182335;border-color:#435674}.wd .btn-primary,.wd .wd-settings-tabs button.active{background:#285fa8!important;border-color:#7db4ff!important}.wd .btn-success{background:#19685a!important;border-color:#6acbb3!important}.wd .btn-outline-danger{border-color:#c37a89!important;color:#ffc1cb!important}.wd .wd-file-intro,.wd .wd-file-guide{background:#182f49;color:#e8eff9;border-color:#526e91}.wd .wd-file-intro strong,.wd .wd-file-guide h4{color:#aad2ff!important}.wd .wd-file-caution{background:#30291e;color:#f8dba5;border-color:#826638}.wd code{background:#0e1726;color:#b9dcff}.wd .wd-file-guide p{color:inherit}.wd .wd-bar>div{background:#71b7ff}.wd #add-title{flex:1;min-width:180px;width:auto}.wd .wd-title-actions{display:flex;gap:6px;flex-wrap:wrap}.wd .wd-scroll{margin-top:12px}.wd #wd-message{color:#e1edff}.wd #wd-message.wd-error-message{color:#ffb3bd}.wd a.btn{background:#293d58;border:1px solid #6984a7;color:#f0f5ff!important}.wd input[type=number]{box-sizing:border-box}.wd .wd-path input{min-width:0}.wd .wd-path button{flex-shrink:0}
 </style>
 <div class="wd">
-<h3>늑대 다운로더 <small>0.1.18 · 독립 작업 프로세스</small></h3>
+<h3>늑대 다운로더 <small>0.1.19 · 독립 작업 프로세스</small></h3>
 <div class="wd-status" aria-live="polite">
  <div class="wd-line"><strong>작업 상태</strong><span id="state" class="wd-grow">확인 중…</span><button id="stop" class="btn btn-sm btn-outline-danger">중지</button></div>
  <div class="wd-meta"><span id="counts">회차 0 / 0</span><span id="pages">이미지 0 / 0</span><span id="schedule"></span><span id="domain"></span></div>
@@ -45,6 +105,9 @@
 <div class="wd-note">설정 저장은 다운로드를 시작하지 않습니다. 경로는 FF 컨테이너 내부 경로이며, 바로 아래에 작품 폴더를 만듭니다.</div>
 <label for="download_path">다운로드 경로</label><div class="wd-path"><input id="download_path" type="text" value="{{ config.download_path }}"><button id="path" class="btn btn-outline-secondary">경로 선택</button></div><small>예: /library/comics/작품명 [작품번호]/0001_회차명 [회차ID]/001.jpg · manhwa 폴더를 자동으로 붙이지 않습니다.</small>
 <label for="titles">자동 수집 작품 목록</label><textarea id="titles" rows="4">{{ config.titles }}</textarea><small>한 줄에 작품 URL 또는 번호 하나. 작품 분석 화면의 ‘자동 수집 추가’로도 등록할 수 있습니다.</small>
+<div class="wd-actions"><input id="add-title" type="text" placeholder="추가할 작품 주소 또는 번호" aria-label="추가할 작품 주소 또는 번호"><button id="register-title" class="btn btn-primary">작품 추가</button><button id="refresh-titles" class="btn">목록 새로고침</button></div>
+<small>추가해도 즉시 다운로드하지 않습니다. 아래 표는 저장된 목록입니다. 저장 회차는 완료 이력 기준이며, 작품명은 작품 목록 조회·회차 분석·수집 후 표시됩니다.</small>
+<div class="wd-scroll"><table><thead><tr><th>작품</th><th>저장 회차</th><th>관리</th></tr></thead><tbody id="title-list"></tbody></table></div>
 <div class="wd-grid">
  <div><label for="base_url">사이트 도메인</label><input id="base_url" type="text" value="{{ config.base_url }}" placeholder="https://현재주소"><small>공지를 보고 입력하거나, 빈 상태에서 도메인 자동 갱신을 실행하세요.</small></div>
  <div><label for="domain_family">도메인 계열</label><select id="domain_family"><option value="wfwf" {% if config.domain_family == 'wfwf' %}selected{% endif %}>wfwf (늑대닷컴)</option><option value="wftoon" {% if config.domain_family == 'wftoon' %}selected{% endif %}>wftoon (늑대닷컴2 / 기존 구조)</option></select><small>다른 계열로 자동 전환하지 않습니다. 기존 /list?toon= 구조를 지원합니다.</small></div>
@@ -111,7 +174,7 @@ const pkg={{ package_name|tojson }}, page={{ page|tojson }}, csrf={{ csrf_token|
 const $id=id=>document.getElementById(id);
 const text=(id,v)=>{if($id(id))$id(id).textContent=v;};
 let active=false,work=null,selected=new Set(),epPage=1,catPage=1,catLast=1,searching=false,histPage=1,histMore=false,resultId='',pollTimer=null,polling=false,alive=true;
-function message(s,error=false){text('wd-message',s);$id('wd-message').style.color=error?'#c45545':'';}
+function message(s,error=false){text('wd-message',s);$id('wd-message').classList.toggle('wd-error-message',error);}
 async function call(command,arg1='',arg2=''){
  const body=new URLSearchParams({command,arg1:typeof arg1==='string'?arg1:JSON.stringify(arg1),arg2:typeof arg2==='string'?arg2:JSON.stringify(arg2),csrf_token:csrf});
  const response=await fetch('/'+pkg+'/ajax/basic/command',{method:'POST',body,credentials:'same-origin'});
@@ -128,7 +191,7 @@ async function poll(){
   text('state',s.message||s.status);text('counts','회차 '+(s.done||0)+' / '+(s.total||0)+' · 완료 '+(s.completed||0)+' · 실패 '+(s.failed||0));
   text('pages','이미지 '+(s.pages_done||0)+' / '+(s.pages_total||0));text('schedule','자동 수집 '+(s.scheduler_enabled?'사용':'꺼짐'));text('domain',s.base_url||'');text('warnings',(s.warnings||[]).concat(s.log_error?[s.log_error]:[]).join('\n'));
   $id('bar').style.width=(s.total?Math.min(100,(s.done||0)/s.total*100):0)+'%';text('details',[s.work_title,s.episode,s.message,s.staging_path?'임시 저장: '+s.staging_path:'',s.target_path?'완료 예정: '+s.target_path:''].filter(Boolean).join(' / '));
-  if(!active&&s.id&&resultId!==s.id){const r=await call('result');if(r.result.job_id===s.id){showResult(r.result);resultId=s.id;}}
+  if(!active&&s.id&&resultId!==s.id){const r=await call('result');if(r.result.job_id===s.id){showResult(r.result);resultId=s.id;if(page==='setting')await titles();}}
  }catch(e){message(e.message,true);}finally{polling=false;if(alive)pollTimer=setTimeout(poll,active?2000:5000);}
 }
 function showResult(r){
@@ -155,9 +218,32 @@ if(page==='setting'){
  });
  selectSettingsTab('basic');
 }
+async function titles(){
+ const r=await call('titles'),box=$id('title-list');box.replaceChildren();
+ for(const row of r.rows){
+  const tr=document.createElement('tr');
+  for(const value of [row.title+' ['+row.id+']',row.completed]){const td=document.createElement('td');td.textContent=value;tr.append(td);}
+  const td=document.createElement('td'),actions=document.createElement('div');actions.className='wd-title-actions';
+  for(const [label,command] of [['지금 받기','run_title'],['목록에서 제외','remove_auto']]){
+   const b=document.createElement('button');b.textContent=label;b.className='btn'+(command==='run_title'?' job':'');
+   b.onclick=async()=>{b.disabled=true;try{if(command==='run_title')await start(command,row.id);else{const r=await call(command,row.id);$id('titles').value=$id('titles').value.split(/[\n|]/).filter(line=>!matchesWork(line,row.id)).join('\n');message(r.msg);await titles();}}catch(e){message(e.message,true);}finally{b.disabled=false;updateButtons();}};actions.append(b);
+  }
+  const a=document.createElement('a');a.textContent='회차 분석';a.className='btn';a.href='/'+pkg+'/basic/manual?toon='+encodeURIComponent(row.id);actions.append(a);td.append(actions);tr.append(td);box.append(tr);
+ }
+ if(!r.rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=3;td.textContent='등록된 작품이 없습니다. 작품 번호 또는 주소를 추가하세요.';tr.append(td);box.append(tr);}
+ updateButtons();
+}
+function matchesWork(line,id){line=line.trim();try{const value=/^\d+$/.test(line)?line:new URL(line).searchParams.get('toon');return /^\d+$/.test(value||'')&&BigInt(value)===BigInt(id);}catch(e){return false;}}
+bind('refresh-titles',titles);
+bind('register-title',async()=>{
+ const r=await call('add_auto',$id('add-title').value),saved=await call('titles');
+ const lines=$id('titles').value.split(/[\n|]/);for(const row of saved.rows){if(!lines.some(line=>matchesWork(line,row.id)))lines.push(row.id);}
+ $id('titles').value=lines.filter(x=>x.trim()).join('\n');$id('add-title').value='';message(r.msg);await titles();
+});
+if(page==='setting')titles().catch(e=>message(e.message,true));
 bind('stop',async()=>{message((await call('stop')).msg);});
 async function saveSettings(){const c={};{% for key in config %}if($id({{ key|tojson }}))c[{{ key|tojson }}]=$id({{ key|tojson }}).type==='checkbox'?$id({{ key|tojson }}).checked:$id({{ key|tojson }}).value;{% endfor %}
- ['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{c[k]=$id(k).value;c['clear_'+k]=$id('clear_'+k).checked;});const r=await call('save',c);message(r.msg);['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{$id(k).value='';$id('clear_'+k).checked=false;});}
+ ['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{c[k]=$id(k).value;c['clear_'+k]=$id('clear_'+k).checked;});const r=await call('save',c);message(r.msg);await titles();['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{$id(k).value='';$id('clear_'+k).checked=false;});}
 bind('save',saveSettings);bind('save_top',saveSettings);
 bind('path',async()=>{const r=await call('browse_path',$id('download_path').value);if(typeof globalSelectLocalFolder!=='function')throw new Error('FF 폴더 선택기를 사용할 수 없습니다. 경로를 직접 입력하세요.');globalSelectLocalFolder('다운로드 경로',r.path,result=>{$id('download_path').value=result;});});
 document.querySelectorAll('.wd [data-command]').forEach(b=>b.onclick=()=>start(b.dataset.command).catch(e=>message(e.message,true)));
