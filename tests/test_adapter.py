@@ -147,6 +147,28 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual((mode, args), ('download', {'work_id': '43'}))
         self.assertNotIn('selected', args)
 
+    def test_effective_domain_uses_matching_cache_not_stale_status(self):
+        from wolf_downloader.common import write_json
+        self.settings['base_url'] = 'https://wfwf100.com'
+        write_json(self.module.data_dir() / 'domain.json', {
+            'configured_base': 'https://wfwf100.com', 'family': 'wfwf', 'base_url': 'https://wfwf105.com'})
+        self.module.manager.status.return_value['base_url'] = 'https://wfwf99.com'
+        state = self.call('status')['state']
+        self.assertEqual(state['base_url'], 'https://wfwf105.com')
+        self.assertTrue(state['domain_state']['verified'])
+        html = self.client.get('/wolf_downloader/basic/setting').get_data(as_text=True)
+        advanced = html.split('id="panel-advanced"', 1)[1].split('id="panel-files"', 1)[0]
+        for key in ('announcer_url', 'current-domain', 'base_url', 'domain_family', 'auto_resolve_base_url'):
+            self.assertIn('id="' + key + '"', advanced)
+        self.assertIn('https://wfwf105.com', advanced)
+        self.settings['base_url'] = 'https://wfwf110.com'
+        state = self.call('status')['state']
+        self.assertEqual(state['base_url'], 'https://wfwf110.com')
+        self.assertFalse(state['domain_state']['verified'])
+        self.settings['base_url'] = 'https://wfwf100.com'
+        self.settings['domain_family'] = 'wftoon'
+        self.assertFalse(self.call('status')['state']['domain_state']['verified'])
+
     def test_csrf_required(self):
         r=self.client.post('/wolf_downloader/ajax/basic/command',data={'command':'run'})
         self.assertEqual(r.status_code,403);self.module.manager.start.assert_not_called()
