@@ -151,27 +151,33 @@ class ModuleBasic(PluginModuleBase):
             if command == 'recent_works':
                 return jsonify(ret='success', rows=History(self.data_dir() / 'history.db').recent_works())
             if command == 'titles':
-                return jsonify(ret='success', rows=History(self.data_dir() / 'history.db').registered(title_ids(self.P.ModelSetting.get('titles') or '')))
+                key = 'separate_titles' if arg1 == 'separate' else 'titles'
+                return jsonify(ret='success', rows=History(self.data_dir() / 'history.db').registered(title_ids(self.P.ModelSetting.get(key) or '')))
             if command == 'remove_auto':
                 wid = parse_id(arg1)
                 with self.settings_lock:
-                    ids = title_ids(self.P.ModelSetting.get('titles') or '')
-                    self.P.ModelSetting.set('titles', '\n'.join(x for x in ids if x != wid))
+                    key = 'separate_titles' if arg2 == 'separate' else 'titles'
+                    ids = title_ids(self.P.ModelSetting.get(key) or '')
+                    self.P.ModelSetting.set(key, '\n'.join(x for x in ids if x != wid))
                 return jsonify(ret='success', msg='자동 수집 목록에서 제외했습니다. 저장 파일과 이력은 유지합니다.')
             if command == 'run_title':
                 wid = parse_id(arg1)
                 conf = self.runtime_config()
-                if wid not in title_ids(conf['titles']):
+                if wid not in title_ids(conf['titles']) + title_ids(conf['separate_titles']):
                     raise WolfError('자동 수집 목록에 등록된 작품만 실행할 수 있습니다.')
                 job = manager.start('download', conf, {'work_id': wid})
                 return jsonify(ret='success', msg='선택 작품의 미완료 회차 수집을 시작했습니다.', job_id=job)
             if command == 'add_auto':
                 wid = parse_id(arg1)
                 with self.settings_lock:
-                    ids = title_ids(self.P.ModelSetting.get('titles') or '')
+                    key, other = ('separate_titles', 'titles') if arg2 == 'separate' else ('titles', 'separate_titles')
+                    if key == 'separate_titles' and not self.config()['separate_path']:
+                        raise WolfError('설정에서 별도 저장 경로를 먼저 저장하세요.')
+                    ids = title_ids(self.P.ModelSetting.get(key) or '')
                     if wid not in ids:
                         ids.append(wid)
-                        self.P.ModelSetting.set('titles', '\n'.join(ids))
+                        self.P.ModelSetting.set(key, '\n'.join(ids))
+                    self.P.ModelSetting.set(other, '\n'.join(x for x in title_ids(self.P.ModelSetting.get(other) or '') if x != wid))
                 write_log(self.data_dir(), 'INFO', '자동 수집 작품 등록: ' + wid)
                 return jsonify(ret='success', msg='자동 수집 목록에 등록했습니다. 즉시 다운로드하지 않습니다.')
             if command == 'browse_path':
@@ -189,6 +195,9 @@ class ModuleBasic(PluginModuleBase):
             args = {}
             if command in ('analyze', 'download'):
                 args['work_id'] = parse_id(arg1)
+                args['separate'] = req.form.get('separate', '') == 'true'
+                if args['separate'] and not self.config()['separate_path']:
+                    raise WolfError('설정에서 별도 저장 경로를 먼저 저장하세요.')
                 if command == 'download':
                     selected = json.loads(arg2 or '[]')
                     if not isinstance(selected, list) or not selected or len(selected) > 10000 or any(not str(x).isdigit() for x in selected):
@@ -211,4 +220,5 @@ class ModuleBasic(PluginModuleBase):
         except Exception as exc:
             write_log(self.data_dir(), 'ERROR', '요청 처리 오류: ' + type(exc).__name__)
             return jsonify(ret='error', msg='처리 실패: FF 로그를 확인하세요.')
+
 
