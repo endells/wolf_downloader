@@ -94,12 +94,14 @@ class Engine:
                 message += addition
         self.notify('download', message)
 
-    def connect(self, force=False):
+    def connect(self, force=False, probe=False):
         cached = read_json(self.directory / 'domain.json', {})
         if cached.get('configured_base') == self.config['base_url'] and cached.get('family') == self.config['domain_family']:
             self.client.base = cached.get('base_url') or self.client.base
+        if probe and not self.client.base:
+            raise WolfError('먼저 도메인을 입력하거나 자동 갱신하세요.')
         previous = self.client.base
-        new = resolve(self.client, force=force, progress=lambda message: self.status(message=message))
+        new = verify(self.client, self.client.base) if probe else resolve(self.client, force=force, progress=lambda message: self.status(message=message))
         self.client.base = new
         # Cookies are only valid for the exact domain where the user saved them.
         if self.config.get('cookie_origin') != new:
@@ -809,9 +811,7 @@ class Engine:
             self.status(status='done', message='알림 요청 처리 완료 (경고 확인)')
             return
         if mode == 'probe':
-            if not self.client.base:
-                raise WolfError('먼저 도메인을 입력하세요.')
-            domain = verify(self.client, self.client.base)
+            domain = self.connect(probe=True)
             self.result(base_url=domain)
             self.status(status='done', message='도메인 정상', base_url=domain)
             return
