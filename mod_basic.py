@@ -37,6 +37,14 @@ class ModuleBasic(PluginModuleBase):
             raw['download_path'] = str(Path(F.config['path_data']) / 'downloads' / 'wolf_downloader')
         return validate(raw)
 
+    def domain_state(self, config=None):
+        config = config or self.config()
+        cached = read_json(self.data_dir() / 'domain.json', {})
+        valid = (cached.get('configured_base') == config['base_url'] and
+                 cached.get('family') == config['domain_family'] and bool(cached.get('base_url')))
+        return {'url': cached['base_url'] if valid else config['base_url'],
+                'verified': bool(valid)}
+
     def runtime_config(self):
         config = self.config()
         secret = read_json(self.data_dir() / 'secrets.json', {})
@@ -84,7 +92,7 @@ class ModuleBasic(PluginModuleBase):
             session[key] = secrets.token_urlsafe(32)
         secret = read_json(self.data_dir() / 'secrets.json', {})
         return render_template('wolf_downloader_basic.html', page=page, config=self.config(),
-                               package_name=self.P.package_name, csrf_token=session[key],
+                               package_name=self.P.package_name, csrf_token=session[key], domain_state=self.domain_state(),
                                secrets_saved={k: bool(secret.get(k)) for k in ('cookie', 'notify_webhook_download', 'notify_webhook_alert')})
 
     def save_secrets(self, raw, conf):
@@ -119,6 +127,8 @@ class ModuleBasic(PluginModuleBase):
             manager = self._manager()
             if command == 'status':
                 state = manager.status()
+                state['domain_state'] = self.domain_state()
+                state['base_url'] = state['domain_state']['url']
                 state['scheduler_enabled'] = F.scheduler.is_include(self.get_scheduler_name())
                 return jsonify(ret='success', state=state)
             if command == 'result':
