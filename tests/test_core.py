@@ -307,6 +307,19 @@ class CoreTests(unittest.TestCase):
         self.assertIn('이전 주소: https://wfwf100.com', notify.call_args.args[1])
         self.assertIn('새 주소: https://wfwf101.com', notify.call_args.args[1])
 
+    def test_probe_checks_cached_domain_and_persists_redirect(self):
+        write_json(self.root / 'domain.json', {'configured_base': self.conf['base_url'],
+                   'family': self.conf['domain_family'], 'base_url': 'https://wfwf105.com'})
+        self.job['mode'] = 'probe'
+        del self.engine.connect
+        with patch('engine.verify', return_value='https://wfwf106.com') as verify, patch('engine.resolve') as resolve, patch.object(self.engine, 'notify') as notify:
+            self.engine.run()
+        verify.assert_called_once_with(self.client, 'https://wfwf105.com')
+        resolve.assert_not_called()
+        self.assertEqual(read_json(self.root / 'domain.json', {})['base_url'], 'https://wfwf106.com')
+        self.assertEqual(self.client.base, 'https://wfwf106.com')
+        notify.assert_called_once()
+
     def test_same_domain_and_failed_resolution_do_not_notify(self):
         with patch('engine.resolve', return_value=self.client.base), patch.object(self.engine, 'notify') as notify:
             Engine.connect(self.engine, force=True)
