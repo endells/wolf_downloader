@@ -138,6 +138,21 @@ class ModuleBasic(PluginModuleBase):
                     self.sync_schedule(conf, previous)
                 write_log(self.data_dir(), 'INFO', '설정 저장 완료 (다운로드 실행 없음)')
                 return jsonify(ret='success', msg='저장했습니다. 다운로드는 시작하지 않습니다.')
+            if command == 'titles':
+                return jsonify(ret='success', rows=History(self.data_dir() / 'history.db').registered(title_ids(self.P.ModelSetting.get('titles') or '')))
+            if command == 'remove_auto':
+                wid = parse_id(arg1)
+                with self.settings_lock:
+                    ids = title_ids(self.P.ModelSetting.get('titles') or '')
+                    self.P.ModelSetting.set('titles', '\n'.join(x for x in ids if x != wid))
+                return jsonify(ret='success', msg='자동 수집 목록에서 제외했습니다. 저장 파일과 이력은 유지합니다.')
+            if command == 'run_title':
+                wid = parse_id(arg1)
+                conf = self.runtime_config()
+                if wid not in title_ids(conf['titles']):
+                    raise WolfError('자동 수집 목록에 등록된 작품만 실행할 수 있습니다.')
+                job = manager.start('download', conf, {'work_id': wid})
+                return jsonify(ret='success', msg='선택 작품의 미완료 회차 수집을 시작했습니다.', job_id=job)
             if command == 'add_auto':
                 wid = parse_id(arg1)
                 with self.settings_lock:
@@ -184,3 +199,4 @@ class ModuleBasic(PluginModuleBase):
         except Exception as exc:
             write_log(self.data_dir(), 'ERROR', '요청 처리 오류: ' + type(exc).__name__)
             return jsonify(ret='error', msg='처리 실패: FF 로그를 확인하세요.')
+
