@@ -888,6 +888,27 @@ class CoreTests(unittest.TestCase):
             self.engine.run()
         self.assertEqual(seen, [('42', self.root / 'downloads'), ('43', self.root / 'separate')])
 
+    def test_selected_maintenance_limits_work_and_retention_to_selected_root(self):
+        self.conf.update(separate_path=str(self.root / 'separate'), separate_titles='43')
+        for mode, method in [('reconcile', 'reconcile'), ('metadata', 'metadata'), ('compress', 'compress_existing')]:
+            self.job['mode'] = mode
+            self.job['args']['work_ids'] = ['43']
+            seen, cleanup = [], []
+            with patch.object(self.engine, method, side_effect=lambda work, folder: seen.append((work['id'], folder.parent))), patch.object(self.engine, 'cleanup_duplicates', side_effect=lambda: cleanup.append((self.engine.config['titles'], self.engine.config['download_path']))):
+                self.engine.run()
+            self.assertEqual(seen, [('43', self.root / 'separate')])
+            self.assertEqual(cleanup, [('43', str(self.root / 'separate'))] if mode == 'reconcile' else [])
+
+    def test_invalid_maintenance_selection_rejected_before_io(self):
+        self.job['mode'] = 'reconcile'
+        for chosen in ([], ['99'], ['42', '99'], '42', [42], None):
+            self.job['args']['work_ids'] = chosen
+            with patch.object(self.engine, 'connect') as connect, patch.object(self.engine, 'cleanup_duplicates') as cleanup:
+                with self.assertRaises(WolfError):
+                    self.engine.run()
+                connect.assert_not_called()
+                cleanup.assert_not_called()
+
     def test_separate_config_validation(self):
         for changes in [dict(separate_titles='43'), dict(separate_path='relative'),
                         dict(separate_path=self.conf['download_path']),
