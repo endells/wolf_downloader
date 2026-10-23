@@ -961,6 +961,21 @@ class LoggingTests(unittest.TestCase):
 
 
 class ParserTests(unittest.TestCase):
+    def test_episode_cards_ignore_shortcut_and_keep_overall_index(self):
+        html = '''<h1>시험 작품</h1><a href="/view?toon=42&num=1">첫화 보기</a>
+        <a class="ep-item" href="/view?toon=42&num=339"><div class="ep-num">339</div>
+        <span class="ep-title">시험 작품 4부 59화</span><div class="ep-date">2026-10-17</div></a>'''
+        work, _ = parse_work(html, 'https://example.com/list?toon=42', '42')
+        self.assertEqual(work['episodes'], [{'id':'339', 'no':339.0, 'title':'시험 작품 4부 59화'}])
+
+    def test_pagination_shortcut_cannot_replace_numbered_episode(self):
+        client = Client(dict(DEFAULTS, base_url='https://example.com'))
+        first = '<h1>시험 작품</h1><a href="/view?toon=42&num=1">1 시험 작품 1화</a><a href="/list?toon=42&pg=2">다음</a>'
+        second = '<h1>시험 작품</h1><a href="/view?toon=42&num=1">첫화 보기</a><a href="/view?toon=42&num=2">2 시험 작품 2화</a>'
+        with patch.object(client, 'html', side_effect=[(first,client.base+'/list?toon=42'),(second,client.base+'/list?toon=42&pg=2')]):
+            work = client.work('42')
+        self.assertEqual([e['no'] for e in work['episodes']], [1,2])
+
     def test_leading_list_number_overrides_story_episode_number(self):
         html = '<h1>화산귀환</h1><a href="/view?toon=42&num=187">187 화산귀환 181화 2026-09-09</a>'
         work, _ = parse_work(html, 'https://example.com/list?toon=42', '42')
