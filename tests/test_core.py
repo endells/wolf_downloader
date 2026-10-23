@@ -59,6 +59,17 @@ class FakeClient:
 
 
 class CoreTests(unittest.TestCase):
+    def test_korean_time_rollover_and_offset(self):
+        from common import korean_time, write_log
+        self.assertEqual(korean_time('2026-12-31T18:30:00+00:00'), '2027-01-01 03:30:00')
+        self.assertEqual(korean_time('2026-10-23T15:30:00+09:00'), '2026-10-23 15:30:00')
+        self.assertEqual(korean_time('2026-10-23T00:00:00Z'), '2026-10-23 09:00:00')
+        self.assertEqual(korean_time('invalid'), 'invalid')
+        with patch('logging.time.time', return_value=0):
+            self.assertTrue(write_log(self.root, 'INFO', '한국 시간 검증'))
+        log = (self.root.parent / 'log' / 'wolf_downloader.log').read_text()
+        self.assertIn('[1970-01-01 09:00:00 KST|INFO|', log)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
