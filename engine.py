@@ -405,6 +405,47 @@ class Engine:
                     while stream.read(256 * 1024):
                         self.client.wait(.005)
 
+    def adopt_existing_archives(self, work, folder):
+        """Recover missing auto-download history from unambiguous local indices."""
+        if not folder.is_dir():
+            return
+        indexed = {}
+        for path in folder.iterdir():
+            if path.is_symlink() or not path.is_file() or path.suffix.lower() not in ('.zip', '.cbz') or '[보존-' in path.name:
+                continue
+            match = re.match(r'^(\d+(?:\.\d+)?)_', path.name)
+            if match:
+                indexed.setdefault(float(match[1]), []).append(path)
+        for ep in work['episodes']:
+            self.client.check()
+            if self.complete(self.history.get(work['id'], ep['id'])):
+                continue
+            paths = indexed.get(float(ep['no']), [])
+            if len(paths) != 1:
+                continue
+            path = paths[0]
+            try:
+                pages = self.archive_page_count(path)
+                marked = re.search(r'#\s*(\d+)$', path.stem)
+                if marked and int(marked[1]) != pages:
+                    continue
+                with zipfile.ZipFile(path) as archive:
+                    if '.wolf-episode.json' in archive.namelist():
+                        entry = archive.getinfo('.wolf-episode.json')
+                        if entry.file_size > 1024 * 1024:
+                            continue
+                        owner = json.loads(archive.read(entry))
+                        if not isinstance(owner, dict) or str(owner.get('work_id')) != str(work['id']) or str(owner.get('ep_id')) != str(ep['id']):
+                            continue
+                self.history.save(work['id'], ep['id'], work_title=work['title'], title=ep['title'],
+                                  status='completed', path=str(path), pages=pages, bytes=path.stat().st_size, error='')
+                self.state['skipped'] += 1
+                self.log('INFO', '기존 ZIP 확인 · 재다운로드 생략: ' + path.name)
+            except (Cancelled, Blocked):
+                raise
+            except (OSError, ValueError, KeyError, zipfile.BadZipFile, WolfError):
+                continue
+
     def download_episode(self, work, ep, folder):
         ep = dict(ep, title=self.local_episode_title(ep, folder))
         wid, eid = work['id'], ep['id']
@@ -890,6 +931,7 @@ class Engine:
                         raise WolfError('선택 회차 중 현재 목록에서 사라진 회차가 있습니다. 다시 분석하세요.')
                     episodes = [e for e in work['episodes'] if e['id'] in set(selected)]
                 else:
+                    self.adopt_existing_archives(work, folder)
                     episodes = [e for e in work['episodes'] if not self.complete(self.history.get(wid, e['id']))]
                     maximum = self.config['max_per_run']
                     if maximum:
