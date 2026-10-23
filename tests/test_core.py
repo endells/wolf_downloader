@@ -116,7 +116,7 @@ class CoreTests(unittest.TestCase):
         old = self.make_archive('0003_3 시험 작품 177화 2026-09-09 [3].zip')
         self.job['mode'] = 'reconcile'
         self.engine.run()
-        target = old.with_name('0003_시험 작품 177화 #2.zip')
+        target = old.with_name('0003_시험 작품 3화 #2.zip')
         self.assertTrue(target.exists())
         self.assertFalse(old.exists())
         self.assertEqual(self.engine.history.get('42', '3')['path'], str(target))
@@ -127,11 +127,11 @@ class CoreTests(unittest.TestCase):
         other = self.make_archive('0002_시험 작품 176화.zip')
         self.job['mode'] = 'reconcile'
         self.engine.run()
-        target = tagged.with_name('0003_시험 작품 177화 #2.zip')
+        target = tagged.with_name('0003_시험 작품 3화 #2.zip')
         self.assertTrue(target.exists())
         self.assertFalse(plain.exists())
         self.assertTrue((target.parent / '.duplicates' / plain.name).exists())
-        self.assertTrue(other.with_name('0002_시험 작품 176화 #2.zip').exists())
+        self.assertTrue(other.with_name('0002_시험 작품 2화 #2.zip').exists())
         self.engine.run()
         self.assertEqual(len(list((target.parent / '.duplicates').iterdir())), 1)
 
@@ -140,8 +140,8 @@ class CoreTests(unittest.TestCase):
         tagged = self.make_archive('0003_시험 작품 177화#2.zip')
         self.job['mode'] = 'reconcile'
         self.engine.run()
-        self.assertTrue(plain.with_name('0003_시험 작품 177화 [보존-2] #2.zip').exists())
-        self.assertTrue(tagged.with_name('0003_시험 작품 177화 #2.zip').exists())
+        self.assertTrue(plain.with_name('0003_시험 작품 3화 [보존-2] #2.zip').exists())
+        self.assertTrue(tagged.with_name('0003_시험 작품 3화 #2.zip').exists())
         self.assertFalse((plain.parent / '.duplicates').exists())
 
     def test_duplicate_archives_use_own_counts_without_site_or_decompression(self):
@@ -150,8 +150,8 @@ class CoreTests(unittest.TestCase):
         self.job['mode'] = 'reconcile'
         with patch.object(self.client, 'html', side_effect=AssertionError('viewer')), patch.object(self.engine, 'archive_signature', side_effect=AssertionError('unneeded hash')):
             self.engine.run()
-        self.assertTrue(plain.with_name('0003_국정원 말단직원 29화 #3.zip').exists())
-        self.assertTrue(tagged.with_name('0003_국정원 말단직원 29화 #4.zip').exists())
+        self.assertTrue(plain.with_name('0003_국정원 말단직원 3화 #3.zip').exists())
+        self.assertTrue(tagged.with_name('0003_국정원 말단직원 3화 #4.zip').exists())
         self.assertFalse((plain.parent / '.duplicates').exists())
         self.assertFalse(any('이미지 수가 맞지 않아' in w for w in self.engine.state['warnings']))
 
@@ -161,7 +161,7 @@ class CoreTests(unittest.TestCase):
         self.job['mode'] = 'reconcile'
         with patch.object(self.client, 'html', side_effect=AssertionError('viewer')):
             self.engine.run()
-        self.assertTrue(tagged.with_name('0003_국정원 말단직원 29화 #3.zip').exists())
+        self.assertTrue(tagged.with_name('0003_국정원 말단직원 3화 #3.zip').exists())
         self.assertTrue((plain.parent / '.duplicates' / plain.name).exists())
         self.assertEqual(self.engine.history.get('42', '3')['pages'], 3)
 
@@ -369,22 +369,23 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(path.exists())
         self.assertEqual(self.engine.history.get('42', '3')['status'], 'failed')
 
-    def test_repair_rejects_conflicting_chapter(self):
+    def test_repair_uses_index_despite_conflicting_chapter(self):
         path = self.make_archive('0003_다른 작품 9화.zip')
         path.write_bytes(b'')
         self.job['mode'] = 'reconcile'
         self.engine.run()
-        self.assertTrue(path.exists())
-        self.assertEqual(self.client.downloads, [])
+        self.assertFalse(path.exists())
+        self.assertTrue(path.with_name('0003_다른 작품 3화 #2.zip').exists())
+        self.assertEqual(self.engine.state['repaired'], 1)
 
-    def test_repair_rejects_neighbor_number_conflict(self):
+    def test_repair_ignores_neighbor_chapter_conflict(self):
         path = self.make_archive('0003_3화.zip')
         path.write_bytes(b'')
         self.make_archive('0002_8화.zip')
         self.job['mode'] = 'reconcile'
         self.engine.run()
-        self.assertTrue(path.exists())
-        self.assertEqual(self.client.downloads, [])
+        self.assertFalse(path.exists())
+        self.assertEqual(self.engine.state['repaired'], 1)
 
     def test_repair_allows_prefix_and_chapter_offset(self):
         path = self.make_archive('0003_작품 177화.zip')
@@ -486,6 +487,38 @@ class CoreTests(unittest.TestCase):
         ep = {'no': 334, 'title': '334 갓 오브 블랙필드 4부 54화 2026-10-10'}
         self.assertEqual(self.engine.local_episode_title(ep, path.parent), '갓 오브 블랙필드 시즌4 54화')
 
+    def test_local_title_without_chapter_uses_source_chapter_not_index(self):
+        path = self.make_archive('0186_내가 정리한 작품.zip')
+        ep = {'no': 187, 'title': '사이트 작품 181화'}
+        self.assertEqual(self.engine.local_episode_title(ep, path.parent), '내가 정리한 작품 181화')
+
+    def test_missing_source_chapter_is_not_inferred(self):
+        path = self.make_archive('0186_내 작품 180화.zip')
+        self.make_archive('0188_내 작품 182화.zip')
+        ep = {'no': 187, 'title': '특별편'}
+        self.assertEqual(self.engine.local_episode_title(ep, path.parent), '특별편')
+
+    def test_analysis_recognizes_existing_index_with_unrelated_title(self):
+        self.make_archive('0003_수동으로 적은 제목.zip')
+        self.job['mode'] = 'analyze'
+        self.job['args']['work_id'] = '42'
+        self.engine.run()
+        record = self.engine.history.get('42', '3')
+        self.assertTrue(self.engine.complete(record, WORK['episodes'][2]))
+        self.assertFalse(self.engine.complete(record, WORK['episodes'][1]))
+        self.assertEqual(self.client.downloads, [])
+
+    def test_repair_without_any_chapter_uses_index(self):
+        path = self.make_archive('0003_기존 작품명.zip')
+        path.write_bytes(b'')
+        work = copy.deepcopy(WORK)
+        work['episodes'][2]['title'] = '특별편'
+        self.job['mode'] = 'reconcile'
+        with patch.object(self.client, 'work', return_value=work):
+            self.engine.run()
+        self.assertEqual(self.engine.state['repaired'], 1)
+        self.assertTrue(path.with_name('0003_기존 작품명 #2.zip').exists())
+
     def test_local_current_title_wins_over_site(self):
         path = self.make_archive('0334_내가 정리한 제목 시즌4 54화 #2.zip')
         ep = {'no': 334, 'title': '334 갓 오브 블랙필드 4부 54화'}
@@ -507,7 +540,7 @@ class CoreTests(unittest.TestCase):
         old = self.make_archive('0003_수동 제목 시즌4 59화#2.zip')
         self.job['mode'] = 'reconcile'
         self.engine.run()
-        self.assertTrue(old.with_name('0003_수동 제목 시즌4 59화 #2.zip').exists())
+        self.assertTrue(old.with_name('0003_수동 제목 시즌4 3화 #2.zip').exists())
 
     def test_title_chapter_is_not_used_as_index(self):
         work, _ = parse_work('<h1>시험</h1><a href="/view?toon=42&num=9">UP 작품 4부 59화</a>', 'https://wfwf100.com/list?toon=42', '42')
@@ -517,7 +550,7 @@ class CoreTests(unittest.TestCase):
         old = self.make_archive('0003_시험 작품 177화#77.zip')
         self.job['mode'] = 'reconcile'
         self.engine.run()
-        self.assertTrue(old.with_name('0003_시험 작품 177화 #2.zip').exists())
+        self.assertTrue(old.with_name('0003_시험 작품 3화 #2.zip').exists())
 
     def test_maintenance_delay_does_not_change_download_setting(self):
         self.conf['request_delay'] = 5
@@ -567,7 +600,7 @@ class CoreTests(unittest.TestCase):
         self.job['mode'] = 'reconcile'
         with patch.object(self.client, 'html', side_effect=AssertionError('viewer request')), patch.object(zipfile.ZipFile, 'open', side_effect=AssertionError('decompression')):
             self.engine.run()
-        self.assertTrue(old.with_name('0003_시험 작품 177화 #3.zip').exists())
+        self.assertTrue(old.with_name('0003_시험 작품 3화 #3.zip').exists())
         self.assertEqual(self.engine.history.get('42', '3')['pages'], 3)
 
     def test_cancel_flushes_already_renamed_history(self):
