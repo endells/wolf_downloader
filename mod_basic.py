@@ -10,7 +10,7 @@ from flask import jsonify, render_template, session
 from framework import F, Job
 from plugin import PluginModuleBase
 
-from .common import DEFAULTS, WolfError, parse_id, read_json, title_ids, validate, write_json, write_log
+from .common import DEFAULTS, WolfError, parse_id, read_json, title_ids, validate, write_json, write_log, korean_time
 from .history import History
 from .manager import Manager
 
@@ -164,6 +164,8 @@ class ModuleBasic(PluginModuleBase):
             if command == 'history':
                 data = json.loads(arg1 or '{}')
                 rows = History(self.data_dir() / 'history.db').rows(max(1, min(100000, int(data.get('page', 1)))), str(data.get('query', '')), str(data.get('status', '')))
+                for row in rows['rows']:
+                    row['updated'] = korean_time(row.get('updated')) if row.get('updated') else ''
                 return jsonify(ret='success', **rows)
             if command == 'save':
                 raw = json.loads(arg1 or '{}')
