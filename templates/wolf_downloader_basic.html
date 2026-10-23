@@ -82,8 +82,11 @@
 
 .wd small,.wd-meta{opacity:1}.wd h3 small{display:inline-block;margin-left:8px;color:#b8c9df!important}.wd .wd-card{background:#182335;border-color:#435674}.wd .btn-primary,.wd .wd-settings-tabs button.active{background:#285fa8!important;border-color:#7db4ff!important}.wd .btn-success{background:#19685a!important;border-color:#6acbb3!important}.wd .btn-outline-danger{border-color:#c37a89!important;color:#ffc1cb!important}.wd .wd-file-intro,.wd .wd-file-guide{background:#182f49;color:#e8eff9;border-color:#526e91}.wd .wd-file-intro strong,.wd .wd-file-guide h4{color:#aad2ff!important}.wd .wd-file-caution{background:#30291e;color:#f8dba5;border-color:#826638}.wd code{background:#0e1726;color:#b9dcff}.wd .wd-file-guide p{color:inherit}.wd .wd-bar>div{background:#71b7ff}.wd #add-title{flex:1;min-width:180px;width:auto}.wd .wd-title-actions{display:flex;gap:6px;flex-wrap:wrap}.wd .wd-scroll{margin-top:12px}.wd #wd-message{color:#e1edff}.wd #wd-message.wd-error-message{color:#ffb3bd}.wd a.btn{background:#293d58;border:1px solid #6984a7;color:#f0f5ff!important}.wd input[type=number]{box-sizing:border-box}.wd .wd-path input{min-width:0}.wd .wd-path button{flex-shrink:0}
 </style>
+<style>
+.wd #log-table td{vertical-align:top;font-size:14px;line-height:1.7}.wd #log-table .log-time{white-space:nowrap;color:#b8c9df!important;font-size:12px;font-variant-numeric:tabular-nums}.wd #log-table .log-message{white-space:pre-wrap;overflow-wrap:anywhere;min-width:240px}.wd #log-table .log-level{font-weight:700;white-space:nowrap}.wd #log-table tr.log-warning td{background:#352d1c!important;color:#ffe1a3!important}.wd #log-table tr.log-error td{background:#3b202c!important;color:#ffc0ca!important}.wd #log-table tr.log-info .log-level{color:#91c9ff!important}.wd #log-table tr.log-debug td{color:#b8c9df!important}.wd .wd-log-scroll{max-height:68vh}.wd #log-query{flex:1;min-width:180px;width:auto}
+</style>
 <div class="wd">
-<h3>늑대 다운로더 <small>0.1.23 · 독립 작업 프로세스</small></h3>
+<h3>늑대 다운로더 <small>0.1.24 · 독립 작업 프로세스</small></h3>
 <div class="wd-status" aria-live="polite">
  <div class="wd-line"><strong>작업 상태</strong><span id="state" class="wd-grow">확인 중…</span><button id="stop" class="btn btn-sm btn-outline-danger">중지</button></div>
  <div class="wd-meta"><span id="counts">회차 0 / 0</span><span id="pages">이미지 0 / 0</span><span id="schedule"></span><span id="domain"></span></div>
@@ -177,6 +180,12 @@
 <div class="wd-scroll"><table><thead><tr><th>선택</th><th>번호</th><th>회차</th><th>이력</th></tr></thead><tbody id="episodes"></tbody></table></div><div class="wd-actions"><button id="ep_prev" class="btn btn-outline-secondary">이전</button><span id="ep_page"></span><button id="ep_next" class="btn btn-outline-secondary">다음</button></div></div>
 {% elif page == 'browse' %}
 <div class="wd-panel"><div class="wd-line"><input id="query" class="wd-grow" type="text" placeholder="작품 제목 검색"><button id="search" class="btn btn-primary job">검색</button></div><div class="wd-actions"><select id="kind"><option value="ing">연재</option><option value="end">완결</option></select><select id="t1"><option value="">전체 요일</option><option value="1">월</option><option value="2">화</option><option value="3">수</option><option value="4">목</option><option value="5">금</option><option value="6">토</option><option value="7">일</option><option value="10">기타</option></select><select id="t2"><option value="">전체 구분</option><option value="1">일반</option><option value="2">BL</option><option value="3">성인</option></select><select id="t3"><option value="">전체 장르</option>{% for genre in ['드라마','판타지','액션','로맨스','일상','개그','미스터리','순정','스포츠','스릴러','무협','학원','공포','스토리'] %}<option>{{ genre }}</option>{% endfor %}</select><select id="o"><option value="n">최신순</option><option value="r">신작순</option><option value="f">인기순</option></select><button id="browse" class="btn btn-outline-primary job">목록 불러오기</button></div><small>목록에서 ‘회차 선택’을 누르면 수동 다운로드 화면으로 이동합니다. 목록 조회도 FF 밖에서 실행됩니다.</small><div id="catalog" class="wd-cards"></div><div class="wd-actions"><button id="cat_prev" class="btn btn-outline-secondary job">이전</button><span id="cat_page"></span><button id="cat_next" class="btn btn-outline-secondary job">다음</button></div></div>
+{% elif page == 'log' %}
+<div class="wd-panel"><h5>작업 로그</h5>
+<div class="wd-actions"><input id="log-query" type="text" placeholder="작품 번호 · 메시지 검색" aria-label="로그 검색"><select id="log-level" aria-label="로그 수준"><option value="all">전체</option><option value="warning">경고 · 오류</option><option value="error">오류만</option></select><button id="log-refresh" class="btn btn-primary">새로고침</button><label class="wd-check"><input id="log-auto" type="checkbox" checked> 자동 갱신</label></div>
+<small>저장된 최근 로그 최대 500줄을 최신순으로 표시합니다. 일반은 파란색, 경고는 노란색, 오류는 붉은색으로 구분합니다. 검색은 표시된 최근 로그 안에서 적용됩니다.</small>
+<small id="log-summary" role="status"></small>
+<div class="wd-scroll wd-log-scroll"><table id="log-table"><thead><tr><th>시각</th><th>구분</th><th>내용</th></tr></thead><tbody id="log-rows"></tbody></table></div></div>
 {% elif page == 'history' %}
 <div class="wd-panel"><div class="wd-line"><input id="history_query" type="text" class="wd-grow" placeholder="작품 / 회차 검색"><select id="history_status"><option value="">모든 상태</option><option value="completed">완료</option><option value="failed">실패</option><option value="interrupted">중단</option></select><button id="history_refresh" class="btn btn-primary">조회</button></div><div class="wd-scroll"><table><thead><tr><th>작품 / 회차</th><th>상태</th><th>경로 / 오류</th><th>시각</th></tr></thead><tbody id="history"></tbody></table></div><div class="wd-actions"><button id="hist_prev" class="btn btn-outline-secondary">이전</button><span id="hist_page"></span><button id="hist_next" class="btn btn-outline-secondary">다음</button></div></div>
 {% else %}
@@ -204,12 +213,25 @@ async function poll(){
  if(polling||!alive)return;polling=true;
  try{
   const {state:s}=await call('status');active=s.active;updateButtons();
+  if(page==='log'&&$id('log-auto').checked)await refreshLogs();
   text('state',s.message||s.status);text('counts','회차 '+(s.done||0)+' / '+(s.total||0)+' · 완료 '+(s.completed||0)+' · 실패 '+(s.failed||0));
   text('pages','이미지 '+(s.pages_done||0)+' / '+(s.pages_total||0));text('schedule','자동 수집 '+(s.scheduler_enabled?'사용':'꺼짐'));text('domain',s.base_url?'현재 도메인: '+s.base_url:'');if(s.domain_state){text('current-domain',s.domain_state.url||'아직 설정되지 않았습니다.');text('current-domain-help',s.domain_state.verified?'실제 접속 확인을 마친 주소입니다. 자동 갱신 결과가 여기에 반영됩니다.':'저장된 입력 주소입니다. 도메인 확인 또는 자동 갱신 후 실제 접속 주소가 표시됩니다.');}text('warnings',(s.warnings||[]).concat(s.log_error?[s.log_error]:[]).join('\n'));
   $id('bar').style.width=(s.total?Math.min(100,(s.done||0)/s.total*100):0)+'%';text('details',[s.work_title,s.episode,s.message,s.staging_path?'임시 저장: '+s.staging_path:'',s.target_path?'완료 예정: '+s.target_path:''].filter(Boolean).join(' / '));
   if(!active&&s.id&&resultId!==s.id){const r=await call('result');if(r.result.job_id===s.id){showResult(r.result);resultId=s.id;if(page==='setting')await titles();if(page==='manual')await recentWorks();}}
  }catch(e){message(e.message,true);}finally{polling=false;if(alive)pollTimer=setTimeout(poll,active?2000:5000);}
 }
+let logRows=[],logSignature='';
+function renderLogs(){
+ const query=$id('log-query').value.toLowerCase(),level=$id('log-level').value,box=$id('log-rows');box.replaceChildren();
+ const rows=logRows.filter(r=>(level==='all'||(level==='warning'?['WARNING','ERROR','CRITICAL']:['ERROR','CRITICAL']).includes(r.level))&&[r.time,r.level,r.message].join(' ').toLowerCase().includes(query));
+ for(const r of rows){const tr=document.createElement('tr');tr.className='log-'+(r.level==='WARNING'?'warning':['ERROR','CRITICAL'].includes(r.level)?'error':r.level==='DEBUG'?'debug':'info');
+ for(const [cls,value] of [['log-time',r.time],['log-level',({INFO:'일반',WARNING:'경고',ERROR:'오류',CRITICAL:'심각',DEBUG:'상세'})[r.level]||r.level],['log-message',r.message]]){const td=document.createElement('td');td.className=cls;td.textContent=value;tr.append(td);}box.append(tr);}
+ if(!rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=3;td.textContent=logRows.length?'검색 조건에 맞는 로그가 없습니다.':'아직 저장된 로그가 없습니다.';tr.append(td);box.append(tr);}
+ text('log-summary','표시 '+rows.length+' / 최근 '+logRows.length+'줄');
+}
+async function refreshLogs(){const r=await call('logs'),signature=JSON.stringify(r.rows);if(signature!==logSignature){logSignature=signature;logRows=r.rows;renderLogs();}}
+bind('log-refresh',refreshLogs);
+if(page==='log'){$id('log-query').addEventListener('input',renderLogs);$id('log-level').addEventListener('change',renderLogs);}
 function showResult(r){
  if(page==='manual'&&r.work){work=r.work;$id('manual-separate').checked=work.separate===true;selected=new Set(work.episodes.filter(e=>!e.completed).map(e=>e.id));epPage=1;text('work_title',work.title);$id('work_url').value=work.id;renderEpisodes();}
  if(page==='browse'&&r.catalog){catPage=r.catalog.page;catLast=r.catalog.last_page;const box=$id('catalog');box.replaceChildren();r.catalog.rows.forEach(row=>{const card=document.createElement('div');card.className='wd-card';const title=document.createElement('strong');title.textContent=row.title;card.append(title);const actions=document.createElement('div');actions.className='wd-actions';const a=document.createElement('a');a.className='btn btn-sm btn-primary';a.textContent='회차 선택';a.href='/'+pkg+'/basic/manual?toon='+encodeURIComponent(row.id);const b=document.createElement('button');b.className='btn btn-sm btn-outline-secondary';b.textContent='자동 수집 추가';b.onclick=()=>call('add_auto',row.id).then(x=>message(x.msg)).catch(e=>message(e.message,true));actions.append(a,b);card.append(actions);box.append(card);});if(!r.catalog.rows.length)box.textContent='결과가 없습니다. 도메인 또는 검색 경로를 확인하세요.';text('cat_page',catPage+' / '+catLast);}
