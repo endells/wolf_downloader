@@ -153,6 +153,14 @@ class ModuleBasic(PluginModuleBase):
                     rows.append({'time': match[1] if match else '', 'level': match[2] if match else 'INFO',
                                  'message': match[3] if match else line})
                 return jsonify(ret='success', rows=list(reversed(rows)))
+            if command == 'maintenance_works':
+                conf = self.config()
+                history = History(self.data_dir() / 'history.db')
+                rows = []
+                for key, path_key, label in (('titles', 'download_path', '기본'), ('separate_titles', 'separate_path', '별도')):
+                    for row in history.registered(title_ids(conf[key])):
+                        rows.append(dict(row, root=conf[path_key], group=label))
+                return jsonify(ret='success', rows=rows)
             if command == 'history':
                 data = json.loads(arg1 or '{}')
                 rows = History(self.data_dir() / 'history.db').rows(max(1, min(100000, int(data.get('page', 1)))), str(data.get('query', '')), str(data.get('status', '')))
@@ -227,7 +235,14 @@ class ModuleBasic(PluginModuleBase):
                 args = json.loads(arg1 or '{}')
                 if not isinstance(args, dict):
                     raise WolfError('목록 요청 형식 오류')
-            elif command in ('run', 'resolve', 'probe', 'metadata', 'reconcile', 'compress', 'notify_test'):
+            elif command in ('metadata', 'reconcile', 'compress'):
+                chosen = json.loads(arg1 or '[]')
+                conf = self.config()
+                allowed = set(title_ids(conf['titles']) + title_ids(conf['separate_titles']))
+                if not isinstance(chosen, list) or not chosen or any(not isinstance(wid, str) or wid not in allowed for wid in chosen):
+                    raise WolfError('등록된 자동 수집 작품에서 관리할 폴더를 선택하세요. 목록이 바뀌었다면 새로고침하세요.')
+                args['work_ids'] = list(dict.fromkeys(chosen))
+            elif command in ('run', 'resolve', 'probe', 'notify_test'):
                 if command == 'notify_test':
                     args['kind'] = 'download' if arg1 == 'download' else 'alert'
             else:
