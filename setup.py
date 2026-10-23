@@ -9,9 +9,10 @@ setting = {
         {'uri': 'basic/manual', 'name': '수동 다운로드'},
         {'uri': 'basic/status', 'name': '진행 상황'},
         {'uri': 'basic/history', 'name': '다운로드 이력'},
-        {'uri': 'log', 'name': '로그'},
+        {'uri': 'basic/log', 'name': '로그'},
     ]},
 }
 P = create_plugin_instance(setting)
 from .mod_basic import ModuleBasic
 P.set_module_list([ModuleBasic])
+
