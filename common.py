@@ -4,8 +4,25 @@ import math
 import os
 import re
 import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
+
+KST = timezone(timedelta(hours=9), 'KST')
+
+
+def korean_time(value=None):
+    """Format display times; UTC history storage remains sortable and unchanged."""
+    if value is None:
+        moment = datetime.now(KST)
+    else:
+        try:
+            moment = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        except (ValueError, TypeError):
+            return str(value or '')
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(KST).strftime('%Y-%m-%d %H:%M:%S')
 
 
 def write_log(directory, level, message, secret_values=()):
@@ -26,7 +43,9 @@ def write_log(directory, level, message, secret_values=()):
         with (path.parent / '.wolf_downloader.log.lock').open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             handler = RotatingFileHandler(str(path), maxBytes=5 * 1024 * 1024, backupCount=3, encoding='utf-8')
-            handler.setFormatter(logging.Formatter('[%(asctime)s|%(levelname)s|wolf_downloader] %(message)s'))
+            formatter = logging.Formatter('[%(asctime)s|%(levelname)s|wolf_downloader] %(message)s', datefmt='%Y-%m-%d %H:%M:%S KST')
+            formatter.converter = lambda stamp: datetime.fromtimestamp(stamp, KST).timetuple()
+            handler.setFormatter(formatter)
             record = logging.LogRecord('wolf_downloader', getattr(logging, level, logging.INFO), '', 0, message, (), None)
             # Use explicit rollover/write so failures return False instead of stderr tracebacks.
             if handler.shouldRollover(record):
