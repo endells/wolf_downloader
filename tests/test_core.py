@@ -86,6 +86,27 @@ class CoreTests(unittest.TestCase):
         ep['title'] = '화산귀환 181화#77'
         self.assertEqual(self.engine.archive_name(ep, 147), '0187_화산귀환 181화 #147.zip')
 
+    def test_auto_adopts_existing_zip_without_downloading_or_renaming(self):
+        path = self.make_archive('0003_수동 수정 제목 1화 #2.zip')
+        before = path.read_bytes()
+        self.engine.run()
+        self.assertEqual(self.engine.history.get('42', '3')['path'], str(path))
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(self.engine.state['failed'], 0)
+        self.assertEqual(len(self.client.downloads), 2)  # Only the next missing episode.
+
+    def test_auto_adoption_rejects_ambiguous_or_wrong_owner_archives(self):
+        path = self.make_archive('0003_3화 #2.zip')
+        self.make_archive('0003_다른 파일 #2.zip')
+        folder = path.parent
+        self.engine.adopt_existing_archives(WORK, folder)
+        self.assertIsNone(self.engine.history.get('42', '3'))
+        owned = self.make_archive('0002_2화 #2.zip')
+        with zipfile.ZipFile(owned, 'a') as z:
+            z.writestr('.wolf-episode.json', json.dumps({'work_id':'99','ep_id':'2'}))
+        self.engine.adopt_existing_archives(WORK, folder)
+        self.assertIsNone(self.engine.history.get('42', '2'))
+
     def test_new_zip_has_actual_page_count(self):
         self.conf['use_compress'] = True
         self.engine.run()
@@ -961,6 +982,11 @@ class LoggingTests(unittest.TestCase):
 
 
 class ParserTests(unittest.TestCase):
+    def test_up_badge_uses_explicit_card_index(self):
+        html = '<h1>작품명</h1><a class="ep-item" data-num="37" href="/view?toon=42&num=999"><div class="ep-num"><span>UP</span></div><span class="ep-title">35화</span></a>'
+        work, _ = parse_work(html, 'https://example.com/list?toon=42', '42')
+        self.assertEqual(work['episodes'][0]['no'], 37)
+
     def test_episode_cards_ignore_shortcut_and_keep_overall_index(self):
         html = '''<h1>시험 작품</h1><a href="/view?toon=42&num=1">첫화 보기</a>
         <a class="ep-item" href="/view?toon=42&num=339"><div class="ep-num">339</div>
