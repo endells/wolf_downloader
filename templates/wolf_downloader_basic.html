@@ -86,7 +86,7 @@
 .wd #log-table td{vertical-align:top;font-size:14px;line-height:1.7}.wd #log-table .log-time{white-space:nowrap;color:#b8c9df!important;font-size:12px;font-variant-numeric:tabular-nums}.wd #log-table .log-message{white-space:pre-wrap;overflow-wrap:anywhere;min-width:240px}.wd #log-table .log-level{font-weight:700;white-space:nowrap}.wd #log-table tr.log-warning td{background:#352d1c!important;color:#ffe1a3!important}.wd #log-table tr.log-error td{background:#3b202c!important;color:#ffc0ca!important}.wd #log-table tr.log-info .log-level{color:#91c9ff!important}.wd #log-table tr.log-debug td{color:#b8c9df!important}.wd .wd-log-scroll{max-height:68vh}.wd #log-query{flex:1;min-width:180px;width:auto}
 </style>
 <div class="wd">
-<h3>늑대 다운로더 <small>0.1.27 · 독립 작업 프로세스</small></h3>
+<h3>늑대 다운로더 <small>0.1.28 · 독립 작업 프로세스</small></h3>
 <div class="wd-status" aria-live="polite">
  <div class="wd-line"><strong>작업 상태</strong><span id="state" class="wd-grow">확인 중…</span><button id="stop" class="btn btn-sm btn-outline-danger">중지</button></div>
  <div class="wd-meta"><span id="counts">회차 0 / 0</span><span id="pages">이미지 0 / 0</span><span id="schedule"></span><span id="domain"></span></div>
@@ -131,7 +131,7 @@
 
 <label for="announcer_url">도메인 공지 채널</label><input id="announcer_url" type="text" value="{{ config.announcer_url }}"><small>기존 채널의 새 채널 안내 링크도 최대 3곳까지 따라갑니다.</small>
 <div class="wd-note" aria-live="polite"><strong>현재 적용 도메인</strong><div id="current-domain">{{ domain_state.url or '아직 설정되지 않았습니다.' }}</div><small id="current-domain-help">{% if domain_state.verified %}실제 접속 확인을 마친 주소입니다. 자동 갱신 결과가 여기에 반영됩니다.{% else %}저장된 입력 주소입니다. 도메인 확인 또는 자동 갱신 후 실제 접속 주소가 표시됩니다.{% endif %}</small></div>
-<div class="wd-grid"> <div><label for="base_url">직접 지정할 도메인</label><input id="base_url" type="text" value="{{ config.base_url }}" placeholder="https://현재주소"><small>수동 변경 시 입력하고 설정을 저장하세요. 자동 갱신으로 적용된 주소는 위에 표시됩니다.</small></div>
+<div class="wd-grid"> <div><label for="base_url">직접 지정할 도메인</label><input id="base_url" type="text" value="{{ domain_state.url }}" placeholder="https://현재주소"><small>직접 수정하기 전에는 현재 적용 도메인과 같은 주소가 표시됩니다. 다른 주소를 사용하려면 입력 후 설정을 저장하세요.</small></div>
  <div><label for="domain_family">도메인 계열</label><select id="domain_family"><option value="wfwf" {% if config.domain_family == 'wfwf' %}selected{% endif %}>wfwf (늑대닷컴)</option><option value="wftoon" {% if config.domain_family == 'wftoon' %}selected{% endif %}>wftoon (늑대닷컴2 / 기존 구조)</option></select><small>다른 계열로 자동 전환하지 않습니다. 기존 /list?toon= 구조를 지원합니다.</small></div></div>
 <label class="wd-check"><input id="auto_resolve_base_url" type="checkbox" {% if config.auto_resolve_base_url %}checked{% endif %}> 접속 실패 시 도메인 자동 갱신</label>
 <div class="wd-actions"><button class="btn btn-outline-primary job" data-command="resolve">도메인 자동 갱신</button><button class="btn btn-outline-secondary job" data-command="probe">현재 도메인 확인</button></div>
@@ -204,6 +204,8 @@
 const pkg={{ package_name|tojson }}, page={{ page|tojson }}, csrf={{ csrf_token|tojson }};
 const $id=id=>document.getElementById(id);
 const text=(id,v)=>{if($id(id))$id(id).textContent=v;};
+let domainEdited=false;
+if($id('base_url'))$id('base_url').addEventListener('input',()=>{domainEdited=true;});
 let active=false,work=null,selected=new Set(),epPage=1,catPage=1,catLast=1,searching=false,histPage=1,histMore=false,resultId='',pollTimer=null,polling=false,alive=true;
 function message(s,error=false){text('wd-message',s);$id('wd-message').classList.toggle('wd-error-message',error);}
 async function call(command,arg1='',arg2=''){
@@ -219,6 +221,7 @@ async function poll(){
  if(polling||!alive)return;polling=true;
  try{
   const {state:s}=await call('status');active=s.active;updateButtons();
+  if(s.domain_state&&$id('base_url')&&!domainEdited)$id('base_url').value=s.domain_state.url||'';
   if(page==='log'&&$id('log-auto').checked)await refreshLogs();
   text('state',s.message||s.status);text('counts','회차 '+(s.done||0)+' / '+(s.total||0)+' · 완료 '+(s.completed||0)+' · 실패 '+(s.failed||0));
   text('pages','이미지 '+(s.pages_done||0)+' / '+(s.pages_total||0));text('schedule','자동 수집 '+(s.scheduler_enabled?'사용':'꺼짐'));text('domain',s.base_url?'현재 도메인: '+s.base_url:'');if(s.domain_state){text('current-domain',s.domain_state.url||'아직 설정되지 않았습니다.');text('current-domain-help',s.domain_state.verified?'실제 접속 확인을 마친 주소입니다. 자동 갱신 결과가 여기에 반영됩니다.':'저장된 입력 주소입니다. 도메인 확인 또는 자동 갱신 후 실제 접속 주소가 표시됩니다.');}text('warnings',(s.warnings||[]).concat(s.log_error?[s.log_error]:[]).join('\n'));
