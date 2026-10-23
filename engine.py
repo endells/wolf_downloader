@@ -12,7 +12,7 @@ from urllib.parse import urlencode, urlsplit
 from xml.etree import ElementTree as ET
 
 from client import Client, parse_images, image_extension, clean_work_title, strip_episode_badges
-from common import WolfError, Blocked, Cancelled, atomic_bytes, inside, read_json, safe_name, title_ids, write_json, write_log
+from common import WolfError, Blocked, Cancelled, atomic_bytes, inside, read_json, safe_name, title_ids, write_json, write_log, korean_time
 from domains import resolve, verify
 from history import History
 
@@ -59,6 +59,7 @@ class Engine:
         url = secret.get('notify_webhook_' + kind, '')
         if not url:
             return
+        message = message[:1740] + '\n알림 시각: ' + korean_time() + ' (한국 시간)'
         try:
             p = urlsplit(url)
             if p.hostname in ('discord.com', 'discordapp.com') and p.path.startswith('/api/webhooks/'):
