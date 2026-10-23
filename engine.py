@@ -171,12 +171,10 @@ class Engine:
             title = strip_episode_badges(leading.group(2))
         return safe_name(title or '회차')
 
-    def local_episode_title(self, ep, folder):
-        """Keep local edits; infer only from consecutive, compatible neighbors."""
-        source = self.clean_episode_title(ep['title'], ep['no'])
+    def local_titles(self, folder):
         labels = {}
         if not folder.is_dir():
-            return source
+            return labels
         for path in folder.iterdir():
             if path.is_symlink() or (not path.is_dir() and path.suffix.lower() not in ('.zip', '.cbz')):
                 continue
@@ -185,36 +183,38 @@ class Engine:
                 continue
             number = float(match[1])
             labels.setdefault(number, set()).add(self.clean_episode_title(match[2], number))
+        return labels
+
+    def local_episode_title(self, ep, folder, labels=None):
+        """Identity is the list index; local wording and source chapter are display only."""
+        source = self.clean_episode_title(ep['title'], ep['no'])
+        labels = self.local_titles(folder) if labels is None else labels
         number = float(ep['no'])
-        if len(labels.get(number, set())) == 1:
-            return next(iter(labels[number]))
         def parts(label):
             return re.fullmatch(r'(.*?)(\d+(?:\.\d+)?)\s*([화회])(.*)', label)
         target = parts(source)
+        current = labels.get(number, set())
+        if not target:
+            # Never manufacture a chapter number from the list index/neighbors.
+            return next(iter(current)) if len(current) == 1 else source
+        def style(label):
+            item = parts(label)
+            prefix = item[1] if item else label.rstrip() + ' '
+            if not prefix.strip():
+                return source
+            season = lambda text: re.search(r'(?:시즌\s*(\d+)|(\d+)\s*부)', text)
+            old, new = season(prefix), season(target[1])
+            if old and new and (old[1] or old[2]) != (new[1] or new[2]):
+                return source
+            return prefix + target[2] + target[3] + target[4]
+        if len(current) == 1:
+            return style(next(iter(current)))
         suggestions = []
         for delta in (-1, 1):
             neighbors = labels.get(number + delta, set())
-            if len(neighbors) != 1:
-                continue
-            item = parts(next(iter(neighbors)))
-            if not item:
-                continue
-            chapter = float(item[2]) - delta
-            if chapter < 0:
-                continue
-            # Do not carry an old season's naming across a numbering reset.
-            if target and float(target[2]) != chapter:
-                continue
-            if target:
-                season = lambda text: re.search(r'(?:시즌\s*(\d+)|(\d+)\s*부)', text)
-                old_season, new_season = season(item[1]), season(target[1])
-                if old_season and new_season and (old_season[1] or old_season[2]) != (new_season[1] or new_season[2]):
-                    continue
-            value = str(int(chapter)) if chapter.is_integer() else str(chapter)
-            suggestions.append(item[1] + value + item[3] + item[4])
-        if suggestions and len(set(suggestions)) == 1 and (target or len(suggestions) == 2):
-            return suggestions[0]
-        return source
+            if len(neighbors) == 1:
+                suggestions.append(style(next(iter(neighbors))))
+        return suggestions[0] if suggestions and len(set(suggestions)) == 1 else source
 
     def archive_name(self, ep, pages):
         return '{} #{}.zip'.format(self.episode_name(ep), pages)
@@ -303,8 +303,7 @@ class Engine:
         normalized = []
         for path, pages in survivors:
             self.client.check()
-            label = re.sub(r'^\d+(?:\.\d+)?_', '', path.stem)
-            episode = dict(ep, title=label)
+            episode = ep
             target = inside(folder, self.archive_name(episode, pages))
             if target != path and target.exists():
                 # Different contents can normalize to the same name. Keep both,
@@ -350,10 +349,13 @@ class Engine:
             except (WolfError, OSError):
                 self.warn(work['title'] + ': 표지 저장 실패 (본문 다운로드는 계속)')
 
-    def complete(self, record):
+    def complete(self, record, ep=None):
         if not record or record['status'] != 'completed' or not record.get('path'):
             return False
         path = Path(record['path'])
+        prefix = re.match(r'^(\d+(?:\.\d+)?)_', path.name)
+        if ep is not None and (not prefix or float(prefix[1]) != float(ep['no'])):
+            return False
         # History is reusable only within the current root; a new destination
         # must actually receive downloads, even if old history still exists.
         root = Path(self.config['download_path']).resolve()
@@ -416,9 +418,12 @@ class Engine:
             match = re.match(r'^(\d+(?:\.\d+)?)_', path.name)
             if match:
                 indexed.setdefault(float(match[1]), []).append(path)
+        numbers = Counter(float(ep['no']) for ep in work['episodes'])
         for ep in work['episodes']:
             self.client.check()
-            if self.complete(self.history.get(work['id'], ep['id'])):
+            if numbers[float(ep['no'])] != 1:
+                continue
+            if self.complete(self.history.get(work['id'], ep['id']), ep):
                 continue
             paths = indexed.get(float(ep['no']), [])
             if len(paths) != 1:
@@ -435,7 +440,7 @@ class Engine:
                         if entry.file_size > 1024 * 1024:
                             continue
                         owner = json.loads(archive.read(entry))
-                        if not isinstance(owner, dict) or str(owner.get('work_id')) != str(work['id']) or str(owner.get('ep_id')) != str(ep['id']):
+                        if not isinstance(owner, dict) or str(owner.get('work_id')) != str(work['id']):
                             continue
                 self.history.save(work['id'], ep['id'], work_title=work['title'], title=ep['title'],
                                   status='completed', path=str(path), pages=pages, bytes=path.stat().st_size, error='')
@@ -541,47 +546,8 @@ class Engine:
                 return []
         if not broken:
             return candidates
-        def chapter(text):
-            match = re.search(r'(\d+(?:\.\d+)?)\s*[화회]', text)
-            return float(match.group(1)) if match else None
-        expected = chapter(ep['title'])
-        for path, _ in broken:
-            actual = chapter(re.sub(r'^\d+(?:\.\d+)?_', '', path.stem))
-            if actual is not None and expected is not None and actual != expected:
-                self.warn(path.name + ': 앞번호와 제목 화수가 사이트 회차와 일치하지 않아 자동 복구 제외')
-                return []
-            if actual is not None and expected is None:
-                # Require both adjacent site entries and local files to agree.
-                evidence = []
-                for delta in (-1, 1):
-                    adjacent = [e for e in work['episodes'] if float(e['no']) == float(ep['no']) + delta]
-                    if len(adjacent) != 1 or chapter(adjacent[0]['title']) != actual + delta:
-                        break
-                    matching = []
-                    for neighbor in folder.iterdir():
-                        prefix = re.match(r'^(\d+(?:\.\d+)?)_', neighbor.name)
-                        if prefix and float(prefix.group(1)) == float(ep['no']) + delta and neighbor.is_file() and not neighbor.is_symlink():
-                            matching.append(chapter(re.sub(r'^\d+(?:\.\d+)?_', '', neighbor.stem)))
-                    if not matching or any(value != actual + delta for value in matching):
-                        break
-                    evidence.append(delta)
-                if len(evidence) != 2:
-                    self.warn(path.name + ': 사이트 제목 정보 부족, 앞뒤 회차 교차 확인도 불충분하여 복구 보류')
-                    return []
-                ep = dict(ep, title=re.sub(r'^\d+(?:\.\d+)?_', '', path.stem))
-        # Cross-check adjacent filenames against their corresponding site entries.
-        neighbors = {float(e['no']): e for e in work['episodes'] if abs(float(e['no']) - float(ep['no'])) == 1}
-        for neighbor in folder.iterdir():
-            prefix = re.match(r'^(\d+(?:\.\d+)?)_', neighbor.name)
-            if neighbor.is_symlink() or not neighbor.is_file() or not prefix:
-                continue
-            nearby = neighbors.get(float(prefix.group(1)))
-            if nearby:
-                local_chapter = chapter(re.sub(r'^\d+(?:\.\d+)?_', '', neighbor.stem))
-                site_chapter = chapter(nearby['title'])
-                if local_chapter is not None and site_chapter is not None and local_chapter != site_chapter:
-                    self.warn(ep['title'] + ': 앞뒤 파일과 사이트 회차 배열이 달라 자동 복구 제외')
-                    return []
+        # reconcile already matched a unique explicit list index. Titles may
+        # omit chapters or use different numbering and must never veto repair.
         repair_folder = inside(folder, '.repair-' + str(ep['id']))
         repair_folder.mkdir(exist_ok=True)
         compress = self.config['use_compress']
@@ -654,7 +620,7 @@ class Engine:
             return
         cache_path = self.directory / ('reconcile-cache-' + str(work['id']) + '.json')
         cache = read_json(cache_path, {})
-        context = ['fast-v2', self.client.base, self.config.get('domain_family'), self.config.get('viewer_selector'), self.config['episode_digits']]
+        context = ['fast-v3', self.client.base, self.config.get('domain_family'), self.config.get('viewer_selector'), self.config['episode_digits']]
         if cache.get('context') != context:
             cache = {'context': context, 'episodes': {}}
         entries = cache.setdefault('episodes', {})
@@ -666,6 +632,7 @@ class Engine:
             if match:
                 groups.setdefault(float(match.group(1)), []).append(path)
         numbers = Counter(float(ep['no']) for ep in work['episodes'])
+        labels = self.local_titles(folder)
         pending = []
         progress_time = 0
         try:
@@ -678,6 +645,7 @@ class Engine:
                 if numbers[number] != 1:
                     self.warn('사이트 목록 번호가 중복되어 건너뜀: ' + str(ep['no']))
                     continue
+                ep = dict(ep, title=self.local_episode_title(ep, folder, labels))
                 cached = entries.get(ep['id'], {})
                 if not (len(candidates) == 1 and candidates[0].is_file() and cached.get('stamp') == self.file_stamp(candidates[0])):
                     candidates = self.repair_existing(work, ep, folder, candidates)
@@ -688,8 +656,7 @@ class Engine:
                     try:
                         stamp = self.file_stamp(found)
                         pages = cached['pages'] if cached.get('stamp') == stamp else self.archive_page_count(found)
-                        label = re.sub(r'^\d+(?:\.\d+)?_', '', found.stem)
-                        target = inside(folder, self.archive_name(dict(ep, title=label), pages))
+                        target = inside(folder, self.archive_name(ep, pages))
                         if target != found:
                             if target.exists():
                                 self.warn(target.name + ': 대상 파일 충돌로 이름 변경 안 함')
@@ -822,10 +789,11 @@ class Engine:
     def compress_existing(self, work, folder):
         if not folder.exists():
             return
+        labels = self.local_titles(folder)
         for ep in work['episodes']:
             self.client.check()
             record = self.history.get(work['id'], ep['id'])
-            if not self.complete(record):
+            if not self.complete(record, ep):
                 continue
             path = Path(record['path'])
             if not path.is_dir():
@@ -834,7 +802,8 @@ class Engine:
             meta = read_json(path / '.wolf-episode.json', {})
             if meta.get('work_id') != work['id'] or meta.get('ep_id') != ep['id']:
                 continue
-            target = inside(folder, self.archive_name(ep, int(record['pages'])))
+            named_ep = dict(ep, title=self.local_episode_title(ep, folder, labels))
+            target = inside(folder, self.archive_name(named_ep, int(record['pages'])))
             if target.exists():
                 self.warn(ep['title'] + ': 기존 ZIP 보존, 압축 건너뜀')
                 continue
@@ -923,8 +892,9 @@ class Engine:
                     raise WolfError('회차 수 한도(10000)를 초과했습니다.')
                 if mode == 'analyze':
                     work['separate'] = bool(separate)
+                    self.adopt_existing_archives(work, folder)
                     for ep in work['episodes']:
-                        ep['completed'] = self.complete(self.history.get(wid, ep['id']))
+                        ep['completed'] = self.complete(self.history.get(wid, ep['id']), ep)
                     self.result(work=work)
                     self.status(status='done', message='분석 완료 — 회차를 선택하세요.', work_title=work['title'])
                     return
@@ -946,7 +916,7 @@ class Engine:
                     episodes = [e for e in work['episodes'] if e['id'] in set(selected)]
                 else:
                     self.adopt_existing_archives(work, folder)
-                    episodes = [e for e in work['episodes'] if not self.complete(self.history.get(wid, e['id']))]
+                    episodes = [e for e in work['episodes'] if not self.complete(self.history.get(wid, e['id']), e)]
                     maximum = self.config['max_per_run']
                     if maximum:
                         episodes = episodes[-maximum:]
