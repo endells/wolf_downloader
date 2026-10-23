@@ -80,6 +80,19 @@ class AdapterTests(unittest.TestCase):
                 result=subprocess.run(['node','--check',str(script)],capture_output=True,text=True)
                 self.assertEqual(result.returncode,0,result.stderr)
 
+    def test_maintenance_selection_and_listing(self):
+        self.settings.update(titles='42', separate_titles='43', separate_path=self.tmp.name+'/separate')
+        rows = self.call('maintenance_works')['rows']
+        self.assertEqual([(r['id'], r['group']) for r in rows], [('42', '기본'), ('43', '별도')])
+        self.assertEqual(rows[1]['root'], self.tmp.name+'/separate')
+        for cmd in ('reconcile', 'metadata', 'compress'):
+            for invalid in ('', '[]', '["99"]', '["42", "99"]', '{}', '[42]'):
+                self.module.manager.start.reset_mock()
+                self.assertEqual(self.call(cmd, invalid)['ret'], 'error')
+                self.module.manager.start.assert_not_called()
+            self.assertEqual(self.call(cmd, '["43", "43"]')['ret'], 'success')
+            self.assertEqual(self.module.manager.start.call_args.args[2], {'work_ids': ['43']})
+
     def test_settings_sections_and_duplicate_action_locations(self):
         html = self.client.get('/wolf_downloader/basic/setting').get_data(as_text=True)
         from html.parser import HTMLParser
