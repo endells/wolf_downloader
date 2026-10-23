@@ -123,6 +123,10 @@ def parse_work(html, url, work_id):
                 title_node = next((n for n in a.walk() if n.matches('.ep-title')), None)
                 if number_node and re.fullmatch(r'\d+(?:\.\d+)?', number_node.text()):
                     row_number = float(number_node.text())
+                elif (number_node and number_node.text().upper() in ('UP', 'NEW')
+                      and re.fullmatch(r'\d+', a.attrs.get('data-num', ''))):
+                    # The current site replaces the displayed index with an UP badge.
+                    row_number = float(a.attrs['data-num'])
                 if title_node and title_node.text():
                     label = strip_episode_badges(title_node.text())
                 # Card titles can themselves begin with a number; only the index field is authoritative.
