@@ -69,7 +69,7 @@ class AdapterTests(unittest.TestCase):
         return self.client.post('/wolf_downloader/ajax/basic/command',data={'command':command,'arg1':arg1,'arg2':arg2,'csrf_token':'token'}).get_json()
 
     def test_all_pages_render_and_javascript_parses(self):
-        for page in ('setting','manual','browse','status','history'):
+        for page in ('setting','manual','browse','status','history','log'):
             with self.subTest(page=page):
                 response=self.client.get('/wolf_downloader/basic/'+page)
                 self.assertEqual(response.status_code,200)
@@ -190,6 +190,20 @@ class AdapterTests(unittest.TestCase):
     def test_csrf_required(self):
         r=self.client.post('/wolf_downloader/ajax/basic/command',data={'command':'run'})
         self.assertEqual(r.status_code,403);self.module.manager.start.assert_not_called()
+
+    def test_saved_logs_newest_first_and_bounded(self):
+        from wolf_downloader.common import write_log
+        self.assertEqual(self.call('logs')['rows'], [])
+        write_log(self.module.data_dir(), 'WARNING', '작품 42 경고')
+        write_log(self.module.data_dir(), 'ERROR', '<script>오류</script>')
+        rows = self.call('logs')['rows']
+        self.assertEqual(rows[0]['level'], 'ERROR')
+        self.assertEqual(rows[0]['message'], '<script>오류</script>')
+        self.assertEqual(rows[1]['level'], 'WARNING')
+        path = self.module.data_dir().parent / 'log' / 'wolf_downloader.log'
+        path.write_text('긴 로그\n' * 60000, encoding='utf-8')
+        self.assertEqual(len(self.call('logs')['rows']), 500)
+        self.module.manager.start.assert_not_called()
 
     def test_separate_registration_moves_membership_without_downloading(self):
         self.settings.update(titles='42', separate_path=self.tmp.name+'/separate')
