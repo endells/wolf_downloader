@@ -101,12 +101,15 @@ def parse_work(html, url, work_id):
     title = next((clean_work_title(t) for t in candidates if
                   clean_work_title(t) and t != meta.get('og:site_name')), '')
     episodes, pages = {}, set()
+    has_episode_cards = any(n.matches('.ep-item') for n in doc.walk('a'))
     for a in doc.walk('a'):
         href = urljoin(url, a.attrs.get('href', ''))
         if urlsplit(href).netloc != urlsplit(url).netloc or link_id(href, 'toon') != str(work_id):
             continue
         num = link_id(href, 'num')
         if num and urlsplit(href).path.rstrip('/').endswith('/view'):
+            if has_episode_cards and not a.matches('.ep-item'):
+                continue
             tooltip, visible = (strip_episode_badges(a.attrs.get('title', '')), strip_episode_badges(a.text()))
             numbered = r'^\s*(\d+(?:\.\d+)?)(?:\s+|_)'
             # A tooltip may omit the overall index even when the visible label has it.
@@ -115,6 +118,15 @@ def parse_work(html, url, work_id):
                 label = visible
             no = re.match(numbered, label)
             row_number = None
+            if a.matches('.ep-item'):
+                number_node = next((n for n in a.walk() if n.matches('.ep-num')), None)
+                title_node = next((n for n in a.walk() if n.matches('.ep-title')), None)
+                if number_node and re.fullmatch(r'\d+(?:\.\d+)?', number_node.text()):
+                    row_number = float(number_node.text())
+                if title_node and title_node.text():
+                    label = strip_episode_badges(title_node.text())
+                # Card titles can themselves begin with a number; only the index field is authoritative.
+                no = None
             parent = a.parent
             while parent and parent.tag not in ('tr', 'li'):
                 parent = parent.parent
@@ -329,7 +341,12 @@ class Client:
                 work = parsed
             elif not work['title'] and parsed['title']:
                 work['title'] = parsed['title']
-            episodes.update({e['id']: e for e in parsed['episodes']})
+            for episode in parsed['episodes']:
+                old = episodes.get(episode['id'])
+                if old is None or (old['no'] is None and episode['no'] is not None):
+                    episodes[episode['id']] = episode
+                elif old['no'] is not None and episode['no'] is not None and old['no'] != episode['no']:
+                    raise WolfError('같은 회차의 목록 순번이 페이지마다 다릅니다. 회차 ID: ' + episode['id'])
             for p in pages:
                 if p not in visited and p not in pending:
                     pending.append(p)
@@ -381,4 +398,5 @@ def image_extension(data):
     if data.startswith(b'RIFF') and data[8:12] == b'WEBP': return '.webp'
     if data[4:8] == b'ftyp' and data[8:12] in (b'avif', b'avis'): return '.avif'
     return ''
+
 
