@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import secrets
 import threading
 from pathlib import Path
@@ -85,7 +86,7 @@ class ModuleBasic(PluginModuleBase):
             write_log(self.data_dir(), 'ERROR', '늑대 자동 수집 시작 실패: ' + type(exc).__name__)
 
     def process_menu(self, page, req):
-        if page not in ('setting', 'browse', 'manual', 'status', 'history'):
+        if page not in ('setting', 'browse', 'manual', 'status', 'history', 'log'):
             page = 'setting'
         key = 'wolf_downloader_csrf'
         if key not in session:
@@ -133,6 +134,25 @@ class ModuleBasic(PluginModuleBase):
                 return jsonify(ret='success', state=state)
             if command == 'result':
                 return jsonify(ret='success', result=manager.result())
+            if command == 'logs':
+                path = self.data_dir().parent / 'log' / 'wolf_downloader.log'
+                try:
+                    with path.open('rb') as stream:
+                        stream.seek(0, os.SEEK_END)
+                        size = stream.tell()
+                        start = max(0, size - 262144)
+                        stream.seek(start)
+                        data = stream.read(262144)
+                    if start:
+                        data = data.partition(b'\n')[2]
+                except FileNotFoundError:
+                    data = b''
+                rows = []
+                for line in data.decode('utf-8', errors='replace').splitlines()[-500:]:
+                    match = re.match(r'^\[([^|]+)\|(DEBUG|INFO|WARNING|ERROR|CRITICAL)\|wolf_downloader\]\s*(.*)$', line)
+                    rows.append({'time': match[1] if match else '', 'level': match[2] if match else 'INFO',
+                                 'message': match[3] if match else line})
+                return jsonify(ret='success', rows=list(reversed(rows)))
             if command == 'history':
                 data = json.loads(arg1 or '{}')
                 rows = History(self.data_dir() / 'history.db').rows(max(1, min(100000, int(data.get('page', 1)))), str(data.get('query', '')), str(data.get('status', '')))
