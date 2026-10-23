@@ -86,7 +86,7 @@
 .wd #log-table td{vertical-align:top;font-size:14px;line-height:1.7}.wd #log-table .log-time{white-space:nowrap;color:#b8c9df!important;font-size:12px;font-variant-numeric:tabular-nums}.wd #log-table .log-message{white-space:pre-wrap;overflow-wrap:anywhere;min-width:240px}.wd #log-table .log-level{font-weight:700;white-space:nowrap}.wd #log-table tr.log-warning td{background:#352d1c!important;color:#ffe1a3!important}.wd #log-table tr.log-error td{background:#3b202c!important;color:#ffc0ca!important}.wd #log-table tr.log-info .log-level{color:#91c9ff!important}.wd #log-table tr.log-debug td{color:#b8c9df!important}.wd .wd-log-scroll{max-height:68vh}.wd #log-query{flex:1;min-width:180px;width:auto}
 </style>
 <div class="wd">
-<h3>늑대 다운로더 <small>0.1.25 · 독립 작업 프로세스</small></h3>
+<h3>늑대 다운로더 <small>0.1.26 · 독립 작업 프로세스</small></h3>
 <div class="wd-status" aria-live="polite">
  <div class="wd-line"><strong>작업 상태</strong><span id="state" class="wd-grow">확인 중…</span><button id="stop" class="btn btn-sm btn-outline-danger">중지</button></div>
  <div class="wd-meta"><span id="counts">회차 0 / 0</span><span id="pages">이미지 0 / 0</span><span id="schedule"></span><span id="domain"></span></div>
@@ -146,6 +146,12 @@
 </section>
 <section id="panel-files" role="tabpanel" aria-labelledby="tab-files" hidden>
 <div class="wd-file-intro"><strong>등록된 자동 수집 작품만 관리합니다</strong>설정한 작품 목록과 다운로드 경로를 기준으로 기존 파일을 정리합니다. 설정을 바꿨다면 먼저 <b>설정 저장</b>을 누르세요.</div>
+<div class="wd-file-guide">
+<h4>관리할 작품 폴더 선택</h4>
+<p>체크한 작품의 폴더만 처리합니다. 기본·별도 경로는 저장된 설정을 따릅니다. 작품명 확인 전인 항목은 번호로 선택할 수 있습니다.</p>
+<div class="wd-actions"><button id="files-all" class="btn job">전체 선택</button><button id="files-none" class="btn job">선택 해제</button><button id="files-refresh" class="btn job">목록 새로고침</button><strong id="files-count" aria-live="polite">선택 0개</strong></div>
+<div id="files-list" style="max-height:360px;overflow:auto">목록을 불러오세요.</div>
+</div>
 <div class="wd-actions wd-file-actions">
 <button class="btn wd-file-btn wd-file-meta job" data-command="metadata">표지 · info.xml 보완</button>
 <button class="btn wd-file-btn job" data-command="reconcile">기존 파일 이력 반영</button>
@@ -247,7 +253,33 @@ function selectSettingsTab(name){
  const tabs=Array.from(document.querySelectorAll('[data-settings-tab]'));
  if(!tabs.some(t=>t.dataset.settingsTab===name))name='basic';
  tabs.forEach(t=>{const chosen=t.dataset.settingsTab===name;t.classList.toggle('active',chosen);t.setAttribute('aria-selected',String(chosen));t.tabIndex=chosen?0:-1;$id('panel-'+t.dataset.settingsTab).hidden=!chosen;});
+ if(name==='files')maintenanceWorks().catch(e=>message(e.message,true));
 }
+function maintenanceSelection(){return Array.from(document.querySelectorAll('#files-list input:checked')).map(c=>c.value);}
+function maintenanceCount(){text('files-count','선택 '+maintenanceSelection().length+'개');}
+async function maintenanceWorks(){
+ const box=$id('files-list');if(!box)return;
+ const previous=new Set(maintenanceSelection());box.replaceChildren();text('files-count','목록 불러오는 중…');
+ try{
+  const r=await call('maintenance_works');
+  for(const row of r.rows){
+   const label=document.createElement('label');label.style.cssText='display:flex;align-items:center;gap:12px;padding:12px;margin:6px 0;background:#172d46;border:1px solid #46688b;border-radius:6px;color:#f0f6ff';
+   const c=document.createElement('input');c.type='checkbox';c.className='job';c.value=row.id;c.checked=previous.has(row.id);c.onchange=maintenanceCount;
+   const detail=document.createElement('span'),title=document.createElement('strong'),path=document.createElement('div');
+   title.textContent='['+row.group+'] '+row.title+' ['+row.id+']';path.textContent='저장 경로: '+row.root;path.style.cssText='color:#bdd4ed;overflow-wrap:anywhere;font-size:13px';detail.append(title,path);label.append(c,detail);box.append(label);
+  }
+  if(!r.rows.length)box.textContent='등록된 자동 수집 작품이 없습니다. 설정에서 작품 목록을 저장하세요.';
+ }catch(e){box.textContent='목록을 불러오지 못했습니다. 새로고침하세요.';throw e;}
+ finally{maintenanceCount();updateButtons();}
+}
+async function startMaintenance(command){
+ const ids=maintenanceSelection();if(!ids.length)throw new Error('관리할 작품 폴더를 먼저 선택하세요.');
+ if(command==='compress'&&!confirm('선택한 '+ids.length+'개 작품의 완료 회차 폴더를 ZIP으로 변환하고, ZIP 검증 후 해당 원본 회차 폴더를 삭제합니다. 진행할까요?'))return;
+ return start(command,ids);
+}
+bind('files-all',()=>{document.querySelectorAll('#files-list input').forEach(c=>c.checked=true);maintenanceCount();});
+bind('files-none',()=>{document.querySelectorAll('#files-list input').forEach(c=>c.checked=false);maintenanceCount();});
+bind('files-refresh',maintenanceWorks);
 if(page==='setting'){
  const tabs=Array.from(document.querySelectorAll('[data-settings-tab]'));
  tabs.forEach((t,index)=>{
@@ -308,9 +340,9 @@ async function saveSettings(){const c={};{% for key in config %}if($id({{ key|to
  ['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{c[k]=$id(k).value;c['clear_'+k]=$id('clear_'+k).checked;});const r=await call('save',c);message(r.msg);await titles();clearTimeout(pollTimer);poll();['cookie','notify_webhook_download','notify_webhook_alert'].forEach(k=>{$id(k).value='';$id('clear_'+k).checked=false;});}
 bind('save',saveSettings);bind('save_top',saveSettings);
 bind('path',async()=>{const r=await call('browse_path',$id('download_path').value);if(typeof globalSelectLocalFolder!=='function')throw new Error('FF 폴더 선택기를 사용할 수 없습니다. 경로를 직접 입력하세요.');globalSelectLocalFolder('다운로드 경로',r.path,result=>{$id('download_path').value=result;});});
-document.querySelectorAll('.wd [data-command]').forEach(b=>b.onclick=()=>start(b.dataset.command).catch(e=>message(e.message,true)));
+document.querySelectorAll('.wd [data-command]').forEach(b=>b.onclick=()=>{const cmd=b.dataset.command;(['metadata','reconcile'].includes(cmd)?startMaintenance(cmd):start(cmd)).catch(e=>message(e.message,true));});
 document.querySelectorAll('.wd .notify').forEach(b=>b.onclick=()=>start('notify_test',b.dataset.kind).catch(e=>message(e.message,true)));
-bind('compress',()=>{if(confirm('이 플러그인의 완료 회차 폴더를 ZIP으로 변환하고, ZIP 검증 후 해당 원본 회차 폴더를 삭제합니다. 진행할까요?'))return start('compress');});
+bind('compress',()=>startMaintenance('compress'));
 bind('separate-path',async()=>{const r=await call('browse_path',$id('separate_path').value||$id('download_path').value);if(typeof globalSelectLocalFolder!=='function')throw new Error('경로를 직접 입력하세요.');globalSelectLocalFolder('별도 저장 경로',r.path,result=>{$id('separate_path').value=result;});});
 bind('manual-separate',()=>{work=null;selected=new Set();$id('episodes').replaceChildren();text('work_title','');text('selection','');text('ep_page','');$id('select_all').checked=false;updateButtons();message('저장 경로가 바뀌었습니다. 회차를 다시 분석하세요.');});
 bind('analyze',()=>start('analyze',$id('work_url').value));bind('add_auto',async()=>{message((await call('add_auto',$id('work_url').value,$id('manual-separate').checked?'separate':'')).msg);});
