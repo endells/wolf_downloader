@@ -854,6 +854,14 @@ class Engine:
     def _run(self):
         started = time.monotonic()
         mode = self.job['mode']
+        maintenance = mode in ('reconcile', 'metadata', 'compress')
+        chosen = None
+        if maintenance and 'work_ids' in self.args:
+            chosen = self.args['work_ids']
+            allowed = set(title_ids(self.config['titles']) + title_ids(self.config.get('separate_titles', '')))
+            if not isinstance(chosen, list) or not chosen or any(not isinstance(wid, str) or wid not in allowed for wid in chosen):
+                raise WolfError('관리할 등록 작품을 선택하세요. 자동 수집 목록을 다시 확인하세요.')
+            chosen = list(dict.fromkeys(chosen))
         if mode == 'notify_test':
             self.notify(self.args.get('kind', 'alert'), '늑대 다운로더 테스트 알림')
             self.status(status='done', message='알림 요청 처리 완료 (경고 확인)')
@@ -864,14 +872,20 @@ class Engine:
             self.status(status='done', message='도메인 정상', base_url=domain)
             return
         if mode in ('download', 'reconcile'):
-            self.cleanup_duplicates()
             original = self.config
-            if original.get('separate_path'):
-                try:
-                    self.config = dict(original, download_path=original['separate_path'], titles=original.get('separate_titles', ''))
+            try:
+                for path_key, titles_key in (('download_path', 'titles'), ('separate_path', 'separate_titles')):
+                    if not original.get(path_key):
+                        continue
+                    ids_for_root = title_ids(original.get(titles_key, ''))
+                    if chosen is not None:
+                        ids_for_root = [wid for wid in ids_for_root if wid in chosen]
+                    if not ids_for_root:
+                        continue
+                    self.config = dict(original, download_path=original[path_key], titles='\n'.join(ids_for_root))
                     self.cleanup_duplicates()
-                finally:
-                    self.config = original
+            finally:
+                self.config = original
         domain = self.connect(force=(mode == 'resolve'))
         if mode == 'resolve':
             self.result(base_url=domain)
@@ -888,7 +902,7 @@ class Engine:
         original = self.config
         separate_ids = title_ids(original.get('separate_titles', ''))
         all_ids = list(dict.fromkeys(title_ids(original['titles']) + separate_ids))
-        ids = all_ids if maintenance else ([self.args['work_id']] if self.args.get('work_id') else all_ids)
+        ids = (chosen if chosen is not None else all_ids) if maintenance else ([self.args['work_id']] if self.args.get('work_id') else all_ids)
         if not ids:
             raise WolfError('자동 수집 작품 목록이 비어 있습니다.')
         for wid in ids:
