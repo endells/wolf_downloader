@@ -81,12 +81,15 @@
 @media(max-width:650px){.wd-grid{grid-template-columns:1fr}.wd-panel{padding:12px}.wd{padding:12px 8px}.wd .wd-scroll table td,.wd .wd-scroll table th{padding:7px;font-size:12px}}
 
 .wd small,.wd-meta{opacity:1}.wd h3 small{display:inline-block;margin-left:8px;color:#b8c9df!important}.wd .wd-card{background:#182335;border-color:#435674}.wd .btn-primary,.wd .wd-settings-tabs button.active{background:#285fa8!important;border-color:#7db4ff!important}.wd .btn-success{background:#19685a!important;border-color:#6acbb3!important}.wd .btn-outline-danger{border-color:#c37a89!important;color:#ffc1cb!important}.wd .wd-file-intro,.wd .wd-file-guide{background:#182f49;color:#e8eff9;border-color:#526e91}.wd .wd-file-intro strong,.wd .wd-file-guide h4{color:#aad2ff!important}.wd .wd-file-caution{background:#30291e;color:#f8dba5;border-color:#826638}.wd code{background:#0e1726;color:#b9dcff}.wd .wd-file-guide p{color:inherit}.wd .wd-bar>div{background:#71b7ff}.wd #add-title{flex:1;min-width:180px;width:auto}.wd .wd-title-actions{display:flex;gap:6px;flex-wrap:wrap}.wd .wd-scroll{margin-top:12px}.wd #wd-message{color:#e1edff}.wd #wd-message.wd-error-message{color:#ffb3bd}.wd a.btn{background:#293d58;border:1px solid #6984a7;color:#f0f5ff!important}.wd input[type=number]{box-sizing:border-box}.wd .wd-path input{min-width:0}.wd .wd-path button{flex-shrink:0}
+.wd-setting-divider{border-top:1px solid var(--wd-border);margin:26px 0 20px}
+.wd #panel-basic>.wd-scroll{border:1px solid var(--wd-border);border-radius:6px;margin:8px 0 16px}
+.wd #panel-basic>label{font-weight:600;margin-top:16px}
 </style>
 <style>
 .wd #log-table td{vertical-align:top;font-size:14px;line-height:1.7}.wd #log-table .log-time{white-space:nowrap;color:#b8c9df!important;font-size:12px;font-variant-numeric:tabular-nums}.wd #log-table .log-message{white-space:pre-wrap;overflow-wrap:anywhere;min-width:240px}.wd #log-table .log-level{font-weight:700;white-space:nowrap}.wd #log-table tr.log-warning td{background:#352d1c!important;color:#ffe1a3!important}.wd #log-table tr.log-error td{background:#3b202c!important;color:#ffc0ca!important}.wd #log-table tr.log-info .log-level{color:#91c9ff!important}.wd #log-table tr.log-debug td{color:#b8c9df!important}.wd .wd-log-scroll{max-height:68vh}.wd #log-query{flex:1;min-width:180px;width:auto}
 </style>
 <div class="wd">
-<h3>늑대 다운로더 <small>0.1.28 · 독립 작업 프로세스</small></h3>
+<h3>늑대 다운로더 <small>0.1.29 · 독립 작업 프로세스</small></h3>
 <div class="wd-status" aria-live="polite">
  <div class="wd-line"><strong>작업 상태</strong><span id="state" class="wd-grow">확인 중…</span><button id="stop" class="btn btn-sm btn-outline-danger">중지</button></div>
  <div class="wd-meta"><span id="counts">회차 0 / 0</span><span id="pages">이미지 0 / 0</span><span id="schedule"></span><span id="domain"></span></div>
@@ -103,20 +106,21 @@
 <div class="wd-panel">
 
 
-<div class="wd-actions"><button id="save_top" class="btn btn-primary">설정 저장</button><button class="btn btn-success job" data-command="run">저장된 목록 지금 받기</button><button class="btn btn-outline-primary job" data-command="resolve">도메인 자동 갱신</button><button class="btn btn-outline-secondary job" data-command="probe">도메인 확인</button></div>
+<div class="wd-actions"><button id="save_top" class="btn btn-primary">설정 저장</button><button class="btn job" data-command="run">지금 받기</button></div>
 <section id="panel-basic" role="tabpanel" aria-labelledby="tab-basic">
-<div class="wd-note">설정 저장은 다운로드를 시작하지 않습니다. 경로는 FF 컨테이너 내부 경로이며, 바로 아래에 작품 폴더를 만듭니다.</div>
-<label for="download_path">다운로드 경로</label><div class="wd-path"><input id="download_path" type="text" value="{{ config.download_path }}"><button id="path" class="btn btn-outline-secondary">경로 선택</button></div><small>예: /library/comics/작품명 [작품번호]/0001_회차명 [회차ID]/001.jpg · manhwa 폴더를 자동으로 붙이지 않습니다.</small>
-<label for="titles">자동 수집 작품 목록</label><textarea id="titles" rows="4">{{ config.titles }}</textarea><small>한 줄에 작품 URL 또는 번호 하나. 작품 분석 화면의 ‘자동 수집 추가’로도 등록할 수 있습니다.</small>
+<label for="titles">자동 수집 작품 번호 또는 주소 — 한 줄에 하나</label><textarea id="titles" rows="5">{{ config.titles }}</textarea>
 <div class="wd-actions"><input id="add-title" type="text" placeholder="추가할 작품 주소 또는 번호" aria-label="추가할 작품 주소 또는 번호"><button id="register-title" class="btn btn-primary">작품 추가</button><button id="refresh-titles" class="btn">목록 새로고침</button></div>
-<small>추가해도 즉시 다운로드하지 않습니다. 아래 표는 저장된 목록입니다. 저장 회차는 완료 이력 기준이며, 작품명은 작품 목록 조회·회차 분석·수집 후 표시됩니다.</small>
+<small>목록에 추가해도 즉시 다운로드하지 않습니다. 새로고침은 저장된 목록을 읽습니다.</small>
 <div class="wd-scroll"><table><thead><tr><th>작품</th><th>저장 회차</th><th>관리</th></tr></thead><tbody id="title-list"></tbody></table></div>
-<label for="separate_path">별도 저장 경로 (성인·기타 작품)</label><div class="wd-path"><input id="separate_path" type="text" value="{{ config.separate_path }}" placeholder="예: /library/comics-separate"><button id="separate-path" class="btn">경로 선택</button></div>
-<small>기본 경로와 다른 폴더를 지정하세요. 기존 파일은 이동하지 않으며 이후 다운로드부터 적용됩니다.</small>
+<label for="download_path">NAS 저장 폴더</label><div class="wd-path"><input id="download_path" type="text" value="{{ config.download_path }}"><button id="path" class="btn btn-outline-secondary">경로 선택</button></div><small>FF 컨테이너 내부 경로입니다. 이 폴더 바로 아래에 작품명 [번호] 폴더를 만듭니다.</small>
+<div class="wd-setting-divider"></div>
 <label for="separate_titles">별도 폴더 자동 수집 작품 목록</label><textarea id="separate_titles" rows="4">{{ config.separate_titles }}</textarea>
 <div class="wd-actions"><input id="separate-add-title" type="text" placeholder="별도 폴더에 받을 작품 주소 또는 번호" aria-label="별도 작품 추가"><button id="separate-register-title" class="btn btn-primary">별도 작품 추가</button><button id="separate-refresh-titles" class="btn">목록 새로고침</button></div>
-<small>별도 경로를 먼저 저장하세요. 같은 작품을 추가하면 반대 목록에서 제외합니다. 예약 수집과 ‘저장된 목록 지금 받기’는 두 목록을 각 경로로 받습니다.</small>
+<small>별도 경로를 먼저 저장하세요. 같은 작품은 한 목록에만 등록됩니다. ‘지금 받기’는 두 목록을 각 경로로 받습니다.</small>
 <div class="wd-scroll"><table><thead><tr><th>별도 폴더 작품</th><th>저장 회차</th><th>관리</th></tr></thead><tbody id="separate-title-list"></tbody></table></div>
+<label for="separate_path">별도 저장 경로 (성인·기타 작품)</label><div class="wd-path"><input id="separate_path" type="text" value="{{ config.separate_path }}" placeholder="예: /library/comics-separate"><button id="separate-path" class="btn">경로 선택</button></div>
+<small>기본 경로와 다른 폴더를 지정하세요. 기존 파일은 이동하지 않으며 이후 다운로드부터 적용됩니다.</small>
+<div class="wd-setting-divider"></div>
 <div class="wd-grid">
  <div><label for="max_per_run">자동 수집: 작품당 최대 회차</label><input id="max_per_run" type="number" min="0" max="10000" value="{{ config.max_per_run }}"><small>0 = 미완료 전체 · 최신 회차 우선. 수동 선택에는 이 제한을 적용하지 않습니다.</small></div>
  <div><label for="episode_digits">회차 번호 자릿수</label><input id="episode_digits" type="number" min="1" max="10" value="{{ config.episode_digits }}"><small>3자리: 001 · 4자리: 0001. 기존 파일 이름은 변경하지 않습니다.</small></div>
@@ -169,8 +173,8 @@
 <div class="wd-file-guide wd-file-caution"><h4>완료 폴더 ZIP 변환 안내</h4>
 <p>이 플러그인이 만든 완료 회차 폴더만 ZIP으로 변환합니다. <b>ZIP 검증이 끝나면 해당 원본 회차 폴더를 삭제합니다.</b></p></div>
 </div></section>
-<div class="wd-actions"><button id="save" class="btn btn-primary">설정 저장</button><button class="btn btn-success job" data-command="run">저장된 목록 지금 받기</button><button class="btn btn-outline-primary job" data-command="resolve">도메인 자동 갱신</button><button class="btn btn-outline-secondary job" data-command="probe">도메인 확인</button></div>
-<small>실행 버튼은 저장된 설정으로 동작합니다. 변경했으면 먼저 ‘설정 저장’을 누르세요.</small>
+<div class="wd-actions"><button id="save" class="btn btn-primary">설정 저장</button><button class="btn job" data-command="run">지금 받기</button></div>
+<small>설정 저장은 다운로드를 시작하지 않습니다. ‘지금 받기’는 저장된 설정으로 실행됩니다.</small>
 
 </div>
 {% elif page == 'manual' %}
