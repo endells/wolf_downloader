@@ -174,6 +174,7 @@ class AdapterTests(unittest.TestCase):
         for key in ('announcer_url', 'current-domain', 'base_url', 'domain_family', 'auto_resolve_base_url'):
             self.assertIn('id="' + key + '"', advanced)
         self.assertIn('https://wfwf105.com', advanced)
+        self.assertIn('id="base_url" type="text" value="https://wfwf105.com"', advanced)
         self.settings['base_url'] = 'https://wfwf110.com'
         state = self.call('status')['state']
         self.assertEqual(state['base_url'], 'https://wfwf110.com')
